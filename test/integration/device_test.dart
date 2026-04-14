@@ -82,7 +82,9 @@ void main() {
     });
 
     test('failing command has non-zero returnCode', () async {
-      final result = await d.shell2('exit 42');
+      // `exit N` kills the shell before `;echo EXIT:$?` runs.
+      // `(exit N)` runs in a subshell — outer shell captures $? correctly.
+      final result = await d.shell2('(exit 42)');
       expect(result.returnCode, equals(42));
       expect(result.isSuccess, isFalse);
     });

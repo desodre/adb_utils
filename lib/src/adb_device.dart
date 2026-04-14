@@ -168,16 +168,40 @@ class AdbDevice {
   }
 
   /// Returns info for the currently displayed app.
+  ///
+  /// Tries three different dumpsys sources to support Android 9–15,
+  /// where the output format of `dumpsys activity` varies significantly.
   Future<ForegroundAppInfo> appCurrent() async {
-    final out = await shell(
-      'dumpsys activity activities | grep mResumedActivity',
+    // Strategy 1: API 29+ uses "mResumedActivity" or "topResumedActivity"
+    // Strategy 2: API 26-28 uses "mResumedActivity" in a different section
+    // Strategy 3: mCurrentFocus from window manager (most reliable cross-version)
+    final candidates = await Future.wait([
+      shell('dumpsys activity activities 2>/dev/null | grep -E "mResumedActivity|topResumedActivity" | grep -v "null" | head -1'),
+      shell('dumpsys window windows 2>/dev/null | grep -E "mCurrentFocus" | head -1'),
+    ]);
+
+    final packageActivity = RegExp(
+      r'([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)+)'
+      r'/'
+      r'([.a-zA-Z][a-zA-Z0-9_.]*)',
     );
-    final match = RegExp(r'(\S+)/(\S+)').firstMatch(out);
-    if (match == null) throw AdbError('Could not parse current app: $out');
-    return ForegroundAppInfo(
-      packageName: match.group(1)!,
-      activity: match.group(2)!,
-    );
+
+    for (final out in candidates) {
+      final match = packageActivity.firstMatch(out);
+      if (match != null) {
+        final pkg = match.group(1)!;
+        final activity = match.group(2)!;
+        // Resolve shorthand activity (.MainActivity → com.pkg.MainActivity)
+        final resolvedActivity =
+            activity.startsWith('.') ? '$pkg$activity' : activity;
+        return ForegroundAppInfo(
+          packageName: pkg,
+          activity: resolvedActivity,
+        );
+      }
+    }
+
+    throw AdbError('Could not parse current app. Raw outputs:\n${candidates.join('\n')}');
   }
 
   // ── Forward / reverse ─────────────────────────────────────────────────────
