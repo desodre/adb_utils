@@ -155,25 +155,50 @@ class AdbClient {
   // ── Connect / disconnect ──────────────────────────────────────────────────
 
   /// Connects to a remote device (equivalent to `adb connect <host:port>`).
+  ///
+  /// Returns the server's response string (e.g. "connected to 192.168.1.1:5555").
+  /// Throws [AdbTimeout] if the server does not respond within [timeout].
   Future<String> connect(
     String address, {
-    Duration timeout = const Duration(seconds: 5),
+    Duration timeout = const Duration(seconds: 10),
   }) async {
     final t = await openTransport();
     try {
-      await t.sendCommand('host:connect:$address');
-      return t.readString();
+      await t.send('host:connect:$address');
+      // readOkay + readString must both be inside the timeout window,
+      // because the ADB server only replies after the TCP connection attempt.
+      return await Future(() async {
+        await t.readOkay();
+        return t.readString();
+      }).timeout(
+        timeout,
+        onTimeout: () => throw AdbTimeout(
+          'connect to $address timed out after $timeout',
+        ),
+      );
     } finally {
       await t.close();
     }
   }
 
   /// Disconnects a remote device.
+  ///
+  /// Returns the server's response string.
+  /// Never throws [AdbError] — when the device is not connected the server
+  /// sends a FAIL response whose message is returned as a plain string,
+  /// matching the behaviour of the `adb disconnect` CLI command.
   Future<String> disconnect(String address) async {
     final t = await openTransport();
     try {
-      await t.sendCommand('host:disconnect:$address');
-      return t.readString();
+      await t.send('host:disconnect:$address');
+      try {
+        await t.readOkay();
+        return await t.readString();
+      } on AdbError catch (e) {
+        // ADB server sends FAIL + message when device is not connected.
+        // Return the message string instead of throwing, like `adb disconnect`.
+        return e.message;
+      }
     } finally {
       await t.close();
     }
