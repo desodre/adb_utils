@@ -1,0 +1,21 @@
+# Configure test tags and default timeout.
+#
+# Run only integration tests (needs ADB server):
+#   dart test --tags integration
+#
+# Run only device tests (needs connected device/emulator):
+#   dart test --tags device
+#
+# Run everything:
+#   dart test
+#
+# Exclude device tests (CI without device):
+#   dart test --exclude-tags device
+
+tags:
+  integration:
+    description: "Requires ADB server running (adb start-server)"
+  device:
+    description: "Requires a physical or emulator device connected via ADB"
+
+timeout: 30s

@@ -1,0 +1,254 @@
+import 'dart:convert';
+import 'dart:io' show Socket, SocketException;
+import 'dart:typed_data';
+
+import 'exceptions.dart';
+import 'models/network_type.dart';
+import 'models/shell_result.dart';
+import 'models/app_info.dart';
+import 'adb_sync.dart';
+import 'adb_client.dart';
+
+/// Provides access to device properties (equivalent to Python's `d.prop`).
+class DeviceProperties {
+  DeviceProperties(this._device);
+
+  final AdbDevice _device;
+  final _cache = <String, String>{};
+
+  Future<String> get(String key, {bool cache = false}) async {
+    if (cache && _cache.containsKey(key)) return _cache[key]!;
+    final value = (await _device.shell('getprop $key')).trim();
+    if (cache) _cache[key] = value;
+    return value;
+  }
+
+  Future<String> get name => get('ro.product.name');
+  Future<String> get model => get('ro.product.model');
+  Future<String> get device => get('ro.product.device');
+  Future<String> get brand => get('ro.product.brand');
+  Future<String> get sdkVersion => get('ro.build.version.sdk');
+  Future<String> get release => get('ro.build.version.release');
+  Future<String> get product => get('ro.product.name');
+}
+
+/// Represents a single Android device and exposes ADB operations.
+///
+/// Obtain via [AdbClient.device].
+class AdbDevice {
+  AdbDevice({required this.serial, required this.client});
+
+  final String serial;
+  final AdbClient client;
+
+  late final prop = DeviceProperties(this);
+  late final sync = AdbSync(this);  
+
+  // ── Shell ─────────────────────────────────────────────────────────────────
+
+  /// Runs a shell command and returns stdout+stderr as a single string.
+  ///
+  /// Throws [AdbTimeout] if [timeout] elapses.
+  Future<String> shell(
+    Object command, {
+    Duration? timeout,
+    String encoding = 'utf-8',
+  }) async {
+    final cmd = command is List ? command.join(' ') : command as String;
+    final t = await client.transportFor(serial);
+    try {
+      await t.sendCommand('shell:$cmd');
+      final raw = await t.readAll();
+      return utf8.decode(raw, allowMalformed: true);
+    } on SocketException catch (e) {
+      throw AdbTimeout('shell timed out: $e');
+    } finally {
+      await t.close();
+    }
+  }
+
+  /// Runs a shell command and returns a [ShellResult] with exit code.
+  ///
+  /// Exit code is obtained by appending `;echo EXIT:$?` to the command.
+  Future<ShellResult> shell2(Object command) async {
+    final cmd = command is List ? command.join(' ') : command as String;
+    final output = await shell('$cmd;echo EXIT:\$?');
+    final match = RegExp(r'EXIT:(\d+)\s*$').firstMatch(output);
+    final returnCode = match != null ? int.parse(match.group(1)!) : -1;
+    final cleanOutput = match != null
+        ? output.substring(0, match.start)
+        : output;
+    return ShellResult(
+      command: cmd,
+      returnCode: returnCode,
+      output: cleanOutput,
+    );
+  }
+
+  // ── Device info ───────────────────────────────────────────────────────────
+
+  Future<String> getSerialNo() => shell('getprop ro.serialno');
+  Future<String> getState() async {
+    final t = await client.openTransport();
+    try {
+      await t.sendCommand('host-serial:$serial:get-state');
+      return t.readString();
+    } finally {
+      await t.close();
+    }
+  }
+
+  /// Returns (width, height) of the display.
+  Future<(int, int)> windowSize() async {
+    final out = await shell('wm size');
+    final match = RegExp(r'(\d+)x(\d+)').firstMatch(out);
+    if (match == null) throw AdbError('Could not parse window size: $out');
+    return (int.parse(match.group(1)!), int.parse(match.group(2)!));
+  }
+
+  /// Returns current screen rotation (0=natural, 1=left, 2=right, 3=upsidedown).
+  Future<int> rotation() async {
+    final out = await shell(
+      'dumpsys input | grep SurfaceOrientation | head -1',
+    );
+    final match = RegExp(r'SurfaceOrientation: (\d)').firstMatch(out);
+    return match != null ? int.parse(match.group(1)!) : 0;
+  }
+
+  /// Returns `true` if the screen is on.
+  Future<bool> isScreenOn() async {
+    final out = await shell('dumpsys input_method | grep mInteractive');
+    return out.contains('mInteractive=true');
+  }
+
+  // ── Screenshot ────────────────────────────────────────────────────────────
+
+  /// Returns PNG screenshot bytes.
+  Future<Uint8List> screenshot() async {
+    final t = await client.transportFor(serial);
+    try {
+      await t.sendCommand('shell:screencap -p');
+      final raw = await t.readAll();
+      return Uint8List.fromList(raw);
+    } finally {
+      await t.close();
+    }
+  }
+
+  // ── Input ─────────────────────────────────────────────────────────────────
+
+  Future<void> click(num x, num y) => shell('input tap $x $y');
+
+  Future<void> swipe(
+    num x1,
+    num y1,
+    num x2,
+    num y2,
+    double durationSeconds,
+  ) =>
+      shell('input swipe $x1 $y1 $x2 $y2 ${(durationSeconds * 1000).toInt()}');
+
+  Future<void> sendKeys(String text) =>
+      shell('input text ${Uri.encodeComponent(text)}');
+
+  Future<void> keyEvent(String keyCode) => shell('input keyevent $keyCode');
+
+  // ── Apps ──────────────────────────────────────────────────────────────────
+
+  /// Lists installed package names.
+  Future<List<String>> listPackages({bool thirdPartyOnly = false}) async {
+    final flag = thirdPartyOnly ? '-3' : '';
+    final out = await shell('pm list packages $flag');
+    return out
+        .trim()
+        .split('\n')
+        .where((l) => l.startsWith('package:'))
+        .map((l) => l.substring('package:'.length).trim())
+        .toList();
+  }
+
+  /// Returns info for the currently displayed app.
+  Future<ForegroundAppInfo> appCurrent() async {
+    final out = await shell(
+      'dumpsys activity activities | grep mResumedActivity',
+    );
+    final match = RegExp(r'(\S+)/(\S+)').firstMatch(out);
+    if (match == null) throw AdbError('Could not parse current app: $out');
+    return ForegroundAppInfo(
+      packageName: match.group(1)!,
+      activity: match.group(2)!,
+    );
+  }
+
+  // ── Forward / reverse ─────────────────────────────────────────────────────
+
+  /// Creates a port forward: `local` → `remote`.
+  Future<void> forward(String local, String remote) async {
+    final t = await client.openTransport();
+    try {
+      await t.sendCommand('host-serial:$serial:forward:$local;$remote');
+    } finally {
+      await t.close();
+    }
+  }
+
+  /// Removes a forward rule by its [local] address.
+  Future<void> forwardRemove(String local) async {
+    final t = await client.openTransport();
+    try {
+      await t.sendCommand('host-serial:$serial:killforward:$local');
+    } finally {
+      await t.close();
+    }
+  }
+
+  Future<void> forwardRemoveAll() async {
+    final t = await client.openTransport();
+    try {
+      await t.sendCommand('host-serial:$serial:killforward-all');
+    } finally {
+      await t.close();
+    }
+  }
+
+  /// Creates a reverse port forward: `remote` → `local`.
+  Future<void> reverse(String remote, String local) =>
+      shell('reverse:$remote;$local');
+
+  // ── Socket connection ─────────────────────────────────────────────────────
+
+  /// Opens a raw socket connection through the device.
+  ///
+  /// Example: `createConnection(NetworkType.localAbstract, 'scrcpy')`
+  Future<Socket> createConnection(NetworkType type, Object address) async {
+    final t = await client.transportFor(serial);
+    await t.sendCommand('${type.prefix}:$address');
+    // Return the underlying socket for caller to use directly
+    return t.socket;
+  }
+
+  // ── Misc ──────────────────────────────────────────────────────────────────
+
+  Future<void> root() => shell('root:');
+  Future<void> tcpip(int port) => shell('tcpip:$port');
+
+  Future<void> openBrowser(String url) =>
+      shell('am start -a android.intent.action.VIEW -d "$url"');
+
+  Future<void> volumeUp({int times = 1}) async {
+    for (var i = 0; i < times; i++) {
+      await keyEvent('KEYCODE_VOLUME_UP');
+    }
+  }
+
+  Future<void> volumeDown({int times = 1}) async {
+    for (var i = 0; i < times; i++) {
+      await keyEvent('KEYCODE_VOLUME_DOWN');
+    }
+  }
+
+  Future<void> volumeMute() => keyEvent('KEYCODE_VOLUME_MUTE');
+
+  @override
+  String toString() => 'AdbDevice(serial: $serial, model: ${prop.model},  product: ${prop.product})';
+}
