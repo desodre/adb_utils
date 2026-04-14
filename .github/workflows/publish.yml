@@ -1,0 +1,45 @@
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      - name: Unit tests
+        run: dart test test/adb_utils_test.dart
+
+      - name: Verify version matches tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"   # strip leading 'v'
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Tag ($TAG) does not match pubspec.yaml version ($VERSION)"
+            exit 1
+          fi
+
+      - name: Publish (dry-run)
+        run: dart pub publish --dry-run
+
+      - name: Publish
+        run: dart pub publish --force

@@ -47,6 +47,28 @@ test/
     device_test.dart          ← tag:device — needs connected device/emulator
 ```
 
+## CI / Publishing
+
+Two workflows in `.github/workflows/`:
+
+| Workflow | Trigger | What runs |
+|---|---|---|
+| `ci.yml` | push/PR to `main` | analyze, format check, unit tests |
+| `publish.yml` | push tag `v*.*.*` | analyze, unit tests, version check, `dart pub publish --force` |
+
+Publishing uses **pub.dev OIDC** — no secrets needed. One-time setup required:
+1. Go to pub.dev → package → **Admin → Automated publishing**
+2. Enable GitHub Actions, set repository and tag pattern `v{{version}}`
+
+**To release a new version:**
+```sh
+# 1. bump version in pubspec.yaml and update CHANGELOG.md
+# 2. commit and push
+git tag v0.2.0
+git push origin v0.2.0   # triggers publish.yml automatically
+```
+
+
 ## ADB Wire Protocol
 
 Every message Client→Server: `XXXX<payload>` (4-char uppercase hex length + UTF-8 body).  

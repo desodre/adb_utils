@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      - name: Format check
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Unit tests
+        run: dart test test/adb_utils_test.dart
+
+      # Integration tests require an ADB server — run only when one is available.
+      # To enable in CI, add a self-hosted runner with a device attached and
+      # uncomment the lines below.
+      #
+      # - name: Integration tests (server)
+      #   run: dart test --tags integration
+      #
+      # - name: Integration tests (device)
+      #   run: dart test --tags device
