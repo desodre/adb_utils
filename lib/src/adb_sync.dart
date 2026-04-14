@@ -67,7 +67,10 @@ class AdbSync {
   }
 
   /// Returns the text content of a remote file.
-  Future<String> readText(String remotePath, {String encoding = 'utf-8'}) async {
+  Future<String> readText(
+    String remotePath, {
+    String encoding = 'utf-8',
+  }) async {
     final bytes = await readBytes(remotePath);
     return utf8.decode(bytes);
   }

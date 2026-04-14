@@ -13,11 +13,7 @@ class AdbTransport {
   AdbTransport(this.socket) {
     // Subscription MUST be started eagerly so buffered data is captured
     // before any read call is made.
-    _sub = socket.listen(
-      _onData,
-      onDone: _onDone,
-      onError: _onError,
-    );
+    _sub = socket.listen(_onData, onDone: _onDone, onError: _onError);
   }
 
   /// The underlying TCP socket. Use for raw byte access (e.g., [AdbDevice.createConnection]).
@@ -67,8 +63,10 @@ class AdbTransport {
   /// Sends a message with the ADB 4-hex-char length prefix.
   Future<void> send(String message) async {
     final encoded = utf8.encode(message);
-    final header =
-        encoded.length.toRadixString(16).padLeft(4, '0').toUpperCase();
+    final header = encoded.length
+        .toRadixString(16)
+        .padLeft(4, '0')
+        .toUpperCase();
     socket.add(utf8.encode(header) + encoded);
     await socket.flush();
   }

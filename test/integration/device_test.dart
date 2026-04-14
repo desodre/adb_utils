@@ -212,11 +212,14 @@ void main() {
   });
 
   group('AdbDevice.appCurrent', () {
-    test('returns ForegroundAppInfo with non-empty package and activity', () async {
-      final app = await d.appCurrent();
-      expect(app.packageName, isNotEmpty);
-      expect(app.activity, isNotEmpty);
-    });
+    test(
+      'returns ForegroundAppInfo with non-empty package and activity',
+      () async {
+        final app = await d.appCurrent();
+        expect(app.packageName, isNotEmpty);
+        expect(app.activity, isNotEmpty);
+      },
+    );
   });
 
   // ── Port forward ──────────────────────────────────────────────────────────
@@ -236,7 +239,9 @@ void main() {
       await d.forward(testLocalPort, testRemotePort);
       final forwards = await adb.forwardList(serial: d.serial);
       expect(
-        forwards.where((f) => f.local == testLocalPort && f.remote == testRemotePort),
+        forwards.where(
+          (f) => f.local == testLocalPort && f.remote == testRemotePort,
+        ),
         isNotEmpty,
       );
     });
@@ -245,20 +250,14 @@ void main() {
       await d.forward(testLocalPort, testRemotePort);
       await d.forwardRemove(testLocalPort);
       final forwards = await adb.forwardList(serial: d.serial);
-      expect(
-        forwards.where((f) => f.local == testLocalPort),
-        isEmpty,
-      );
+      expect(forwards.where((f) => f.local == testLocalPort), isEmpty);
     });
 
     test('forwardRemoveAll clears all device forwards', () async {
       await d.forward(testLocalPort, testRemotePort);
       await d.forwardRemoveAll();
       final forwards = await adb.forwardList(serial: d.serial);
-      expect(
-        forwards.where((f) => f.serial == d.serial),
-        isEmpty,
-      );
+      expect(forwards.where((f) => f.serial == d.serial), isEmpty);
     });
   });
 

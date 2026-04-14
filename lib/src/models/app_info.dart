@@ -15,8 +15,7 @@ class AppInfo {
   final DateTime? lastUpdateTime;
 
   @override
-  String toString() =>
-      'AppInfo(package: $packageName, version: $versionName)';
+  String toString() => 'AppInfo(package: $packageName, version: $versionName)';
 }
 
 /// Current foreground app info.

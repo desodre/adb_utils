@@ -41,7 +41,11 @@ void main() {
     test('each DeviceInfo has non-empty serial', () async {
       final devices = await adb.deviceList();
       for (final d in devices) {
-        expect(d.serial, isNotEmpty, reason: 'DeviceInfo.serial must not be empty');
+        expect(
+          d.serial,
+          isNotEmpty,
+          reason: 'DeviceInfo.serial must not be empty',
+        );
       }
     });
 

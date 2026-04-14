@@ -110,14 +110,16 @@ class AdbClient {
             device = kv[1];
         }
       }
-      devices.add(DeviceInfo(
-        serial: serial,
-        state: state,
-        transportId: transportId,
-        product: product,
-        model: model,
-        device: device,
-      ));
+      devices.add(
+        DeviceInfo(
+          serial: serial,
+          state: state,
+          transportId: transportId,
+          product: product,
+          model: model,
+          device: device,
+        ),
+      );
     }
     return devices;
   }
@@ -172,9 +174,8 @@ class AdbClient {
         return t.readString();
       }).timeout(
         timeout,
-        onTimeout: () => throw AdbTimeout(
-          'connect to $address timed out after $timeout',
-        ),
+        onTimeout: () =>
+            throw AdbTimeout('connect to $address timed out after $timeout'),
       );
     } finally {
       await t.close();
@@ -210,8 +211,9 @@ class AdbClient {
   Future<List<ForwardItem>> forwardList({String? serial}) async {
     final t = await openTransport();
     try {
-      final cmd =
-          serial != null ? 'host-serial:$serial:list-forward' : 'host:list-forward';
+      final cmd = serial != null
+          ? 'host-serial:$serial:list-forward'
+          : 'host:list-forward';
       await t.sendCommand(cmd);
       final body = await t.readString();
       return _parseForwardList(body);
@@ -226,7 +228,9 @@ class AdbClient {
       if (line.trim().isEmpty) continue;
       final parts = line.trim().split(' ');
       if (parts.length < 3) continue;
-      items.add(ForwardItem(serial: parts[0], local: parts[1], remote: parts[2]));
+      items.add(
+        ForwardItem(serial: parts[0], local: parts[1], remote: parts[2]),
+      );
     }
     return items;
   }

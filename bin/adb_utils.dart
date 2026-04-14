@@ -21,4 +21,3 @@ void main(List<String> arguments) async {
     print('Error: $e');
   }
 }
-

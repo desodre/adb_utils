@@ -42,7 +42,7 @@ class AdbDevice {
   final AdbClient client;
 
   late final prop = DeviceProperties(this);
-  late final sync = AdbSync(this);  
+  late final sync = AdbSync(this);
 
   // ── Shell ─────────────────────────────────────────────────────────────────
 
@@ -139,13 +139,7 @@ class AdbDevice {
 
   Future<void> click(num x, num y) => shell('input tap $x $y');
 
-  Future<void> swipe(
-    num x1,
-    num y1,
-    num x2,
-    num y2,
-    double durationSeconds,
-  ) =>
+  Future<void> swipe(num x1, num y1, num x2, num y2, double durationSeconds) =>
       shell('input swipe $x1 $y1 $x2 $y2 ${(durationSeconds * 1000).toInt()}');
 
   Future<void> sendKeys(String text) =>
@@ -197,8 +191,7 @@ class AdbDevice {
       if (match != null) {
         final pkg = match.group(1)!;
         final activity = match.group(2)!;
-        final resolved =
-            activity.startsWith('.') ? '$pkg$activity' : activity;
+        final resolved = activity.startsWith('.') ? '$pkg$activity' : activity;
         return ForegroundAppInfo(packageName: pkg, activity: resolved);
       }
     }
@@ -278,5 +271,6 @@ class AdbDevice {
   Future<void> volumeMute() => keyEvent('KEYCODE_VOLUME_MUTE');
 
   @override
-  String toString() => 'AdbDevice(serial: $serial, model: ${prop.model},  product: ${prop.product})';
+  String toString() =>
+      'AdbDevice(serial: $serial, model: ${prop.model},  product: ${prop.product})';
 }
