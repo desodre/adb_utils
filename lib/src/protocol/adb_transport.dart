@@ -124,6 +124,9 @@ class AdbTransport {
     await readOkay();
   }
 
+  /// Reads exactly [n] raw bytes from the socket.
+  Future<List<int>> readBytes(int n) => _readExact(n);
+
   Future<void> close() async {
     await _sub.cancel();
     await socket.close();

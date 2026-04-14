@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show Socket, SocketException;
+import 'dart:io' show File, Socket, SocketException;
 import 'dart:typed_data';
 
 import 'exceptions.dart';
@@ -269,6 +269,52 @@ class AdbDevice {
   }
 
   Future<void> volumeMute() => keyEvent('KEYCODE_VOLUME_MUTE');
+
+  /// Installs an APK, equivalent to `adb install [flags] <apkPath>`.
+  ///
+  /// Streams the APK bytes directly to the device via
+  /// `exec:cmd package install -S <size>` — no temp file needed.
+  Future<String> install({
+    required String apkPath,
+    bool replace = false,
+    bool allowTest = false,
+    bool allowDowngrade = false,
+    bool grantAllPermissions = false,
+    bool instantApp = false,
+  }) async {
+    final bytes = await File(apkPath).readAsBytes();
+
+    final args = <String>[];
+    if (replace) args.add('-r');
+    if (allowTest) args.add('-t');
+    if (allowDowngrade) args.add('-d');
+    if (grantAllPermissions) args.add('-g');
+    if (instantApp) args.add('--instant');
+    args.addAll(['-S', '${bytes.length}']);
+
+    final t = await client.transportFor(serial);
+    try {
+      await t.sendCommand('exec:cmd package install ${args.join(' ')}');
+      t.socket.add(bytes);
+      await t.socket.flush();
+      final raw = await t.readAll();
+      return utf8.decode(raw, allowMalformed: true);
+    } finally {
+      await t.close();
+    }
+  }
+
+  /// Uninstalls a package, equivalent to `adb uninstall <packageName>`.
+  Future<String> uninstall({required String packageName}) async {
+    final t = await client.transportFor(serial);
+    try {
+      await t.sendCommand('exec:cmd package uninstall $packageName');
+      final raw = await t.readAll();
+      return utf8.decode(raw, allowMalformed: true);
+    } finally {
+      await t.close();
+    }
+  }
 
   @override
   String toString() =>

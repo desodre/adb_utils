@@ -5,13 +5,14 @@ import 'dart:typed_data';
 import 'exceptions.dart';
 import 'adb_device.dart';
 
-// SYNC protocol command codes — used when implementing the SYNC protocol.
-// ignore_for_file: unused_element
 const _syncData = 'DATA';
 const _syncDone = 'DONE';
+// ignore: unused_element
 const _syncRecv = 'RECV';
 const _syncSend = 'SEND';
+// ignore: unused_element
 const _syncStat = 'STAT';
+// ignore: unused_element
 const _syncList = 'LIST';
 const _syncQuit = 'QUIT';
 
@@ -21,7 +22,6 @@ const _syncQuit = 'QUIT';
 class AdbSync {
   AdbSync(this._device);
 
-  // ignore: unused_field
   final AdbDevice _device;
 
   // ── Push ──────────────────────────────────────────────────────────────────
@@ -46,10 +46,72 @@ class AdbSync {
     await _pushBytes(bytes, remotePath);
   }
 
-  Future<void> _pushBytes(Uint8List data, String remotePath) async {
-    // TODO: Implement full ADB SYNC protocol SEND command
-    // See: https://cs.android.com/android/platform/superproject/+/master:packages/modules/adb/SYNC.TXT
-    throw UnimplementedError('SYNC push not yet implemented');
+  Future<void> _pushBytes(
+    Uint8List data,
+    String remotePath, {
+    int mode = 0x1A4, // 0644 octal
+  }) async {
+    final t = await _device.client.transportFor(_device.serial);
+    try {
+      await t.sendCommand('sync:');
+
+      // SEND <path,mode>
+      final pathMode = '$remotePath,$mode';
+      final pathModeBytes = utf8.encode(pathMode);
+      final sendMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncSend))
+        ..add(_le32(pathModeBytes.length))
+        ..add(pathModeBytes);
+      t.socket.add(sendMsg.toBytes());
+
+      // DATA chunks (max 64 KB each)
+      const maxChunk = 65536;
+      for (var offset = 0; offset < data.length; offset += maxChunk) {
+        final end = (offset + maxChunk < data.length)
+            ? offset + maxChunk
+            : data.length;
+        final chunk = data.sublist(offset, end);
+        final dataMsg = BytesBuilder(copy: false)
+          ..add(utf8.encode(_syncData))
+          ..add(_le32(chunk.length))
+          ..add(chunk);
+        t.socket.add(dataMsg.toBytes());
+      }
+
+      // DONE <mtime>
+      final mtime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final doneMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncDone))
+        ..add(_le32(mtime));
+      t.socket.add(doneMsg.toBytes());
+      await t.socket.flush();
+
+      // Read OKAY/FAIL response (SYNC uses LE32 length, not 4-char hex)
+      final status = utf8.decode(await t.readBytes(4));
+      final lenBytes = await t.readBytes(4);
+      final length = ByteData.view(
+        Uint8List.fromList(lenBytes).buffer,
+      ).getUint32(0, Endian.little);
+
+      if (status == 'OKAY') return;
+      if (status == 'FAIL') {
+        final msg = utf8.decode(await t.readBytes(length));
+        throw AdbError('SYNC push failed: $msg');
+      }
+      throw AdbError('Unexpected SYNC status: $status');
+    } finally {
+      final quitMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncQuit))
+        ..add(_le32(0));
+      t.socket.add(quitMsg.toBytes());
+      await t.close();
+    }
+  }
+
+  static List<int> _le32(int value) {
+    final bd = ByteData(4);
+    bd.setUint32(0, value, Endian.little);
+    return bd.buffer.asUint8List();
   }
 
   // ── Pull ──────────────────────────────────────────────────────────────────
