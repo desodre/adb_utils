@@ -149,6 +149,14 @@ class AdbDevice {
 
   // ── Apps ──────────────────────────────────────────────────────────────────
 
+  /// Returns [AppInfo] for the given [packageName].
+  ///
+  /// Throws [AdbError] if the package is not installed on the device.
+  Future<AppInfo> appInfo(String packageName) async {
+    final out = await shell('dumpsys package $packageName');
+    return AppInfo.fromDumpsys(packageName, out);
+  }
+
   /// Lists installed package names.
   Future<List<String>> listPackages({bool thirdPartyOnly = false}) async {
     final flag = thirdPartyOnly ? '-3' : '';

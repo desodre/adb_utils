@@ -1,6 +1,31 @@
 import 'package:adb_utils/adb_utils.dart';
 import 'package:test/test.dart';
 
+// Realistic dumpsys output (trimmed) for a user-installed package.
+const _dumpsysUserApp = '''
+Package [com.example.app] (abc1234):
+    versionCode=42 minSdk=21 targetSdk=33
+    versionName=1.2.3
+    lastUpdateTime=2024-03-15 10:30:00
+      firstInstallTime=1969-12-31 20:00:00
+      firstInstallTime=2024-01-01 09:00:00
+''';
+
+// Realistic dumpsys output for a system app with two real user entries.
+const _dumpsysSystemApp = '''
+Package [com.android.settings] (5d43f04):
+    versionCode=35 minSdk=35 targetSdk=35
+    versionName=15
+    lastUpdateTime=2025-05-29 13:05:29
+      firstInstallTime=2025-05-29 13:05:29
+      firstInstallTime=2025-06-12 15:40:34
+''';
+
+// Dumpsys output with no optional fields.
+const _dumpsysMinimal = '''
+Package [com.bare.app] (000000):
+''';
+
 void main() {
   group('DeviceState', () {
     test('parses known states', () {
@@ -42,6 +67,63 @@ void main() {
         remote: 'localabstract:scrcpy',
       );
       expect(item.toString(), contains('abc123'));
+    });
+  });
+
+  group('AppInfo.fromDumpsys', () {
+    test('parses packageName, versionCode, versionName', () {
+      final info = AppInfo.fromDumpsys('com.example.app', _dumpsysUserApp);
+      expect(info.packageName, equals('com.example.app'));
+      expect(info.versionCode, equals(42));
+      expect(info.versionName, equals('1.2.3'));
+    });
+
+    test('parses lastUpdateTime correctly', () {
+      final info = AppInfo.fromDumpsys('com.example.app', _dumpsysUserApp);
+      expect(info.lastUpdateTime, equals(DateTime(2024, 3, 15, 10, 30, 0)));
+    });
+
+    test('filters epoch sentinel and returns real firstInstallTime', () {
+      final info = AppInfo.fromDumpsys('com.example.app', _dumpsysUserApp);
+      // epoch (1969) must be discarded; only 2024-01-01 remains
+      expect(info.firstInstallTime, equals(DateTime(2024, 1, 1, 9, 0, 0)));
+    });
+
+    test('returns earliest firstInstallTime when multiple real dates exist', () {
+      final info = AppInfo.fromDumpsys('com.android.settings', _dumpsysSystemApp);
+      // 2025-05-29 is earlier than 2025-06-12
+      expect(info.firstInstallTime, equals(DateTime(2025, 5, 29, 13, 5, 29)));
+    });
+
+    test('returns null optional fields for minimal output', () {
+      final info = AppInfo.fromDumpsys('com.bare.app', _dumpsysMinimal);
+      expect(info.versionCode, isNull);
+      expect(info.versionName, isNull);
+      expect(info.firstInstallTime, isNull);
+      expect(info.lastUpdateTime, isNull);
+    });
+
+    test('throws AdbError when package not found', () {
+      expect(
+        () => AppInfo.fromDumpsys(
+          'com.missing.pkg',
+          'Unable to find package: com.missing.pkg\n',
+        ),
+        throwsA(isA<AdbError>()),
+      );
+    });
+
+    test('throws AdbError when header is absent', () {
+      expect(
+        () => AppInfo.fromDumpsys('com.example.app', 'some unrelated output'),
+        throwsA(isA<AdbError>()),
+      );
+    });
+
+    test('toString includes packageName and versionName', () {
+      final info = AppInfo.fromDumpsys('com.example.app', _dumpsysUserApp);
+      expect(info.toString(), contains('com.example.app'));
+      expect(info.toString(), contains('1.2.3'));
     });
   });
 }

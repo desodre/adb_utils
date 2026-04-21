@@ -1,3 +1,4 @@
-## 0.1.1
+## 0.1.2
 
-- Added integration tests for `AdbDevice.install` and `AdbDevice.uninstall` methods. These tests verify that APKs can be installed and uninstalled correctly on connected devices.
+- added `AppInfo.fromDumpsys` to get more detailed information about the app, such as version and permissions. This is useful for users who want to know more about the apps installed on their devices.
+- added `AdbDevice.appInfo` to retrieve the `AppInfo` for a given package name.

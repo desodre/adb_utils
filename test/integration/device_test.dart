@@ -332,4 +332,32 @@ void main() {
       expect(output, contains('Success'));
     });
   });
+
+  group('AdbDevice.appInfo', () {
+    test('returns AppInfo for installed package', () async {
+      final info = await d.appInfo('com.android.settings');
+      expect(info.packageName, equals('com.android.settings'));
+      expect(info.versionCode, isNotNull);
+      expect(info.versionName, isNotNull);
+      expect(info.versionName, isNotEmpty);
+    });
+
+    test('firstInstallTime and lastUpdateTime are non-null', () async {
+      final info = await d.appInfo('com.android.settings');
+      expect(info.firstInstallTime, isNotNull);
+      expect(info.lastUpdateTime, isNotNull);
+    });
+
+    test('firstInstallTime is not an epoch sentinel (year >= 2000)', () async {
+      final info = await d.appInfo('com.android.settings');
+      expect(info.firstInstallTime!.year, greaterThanOrEqualTo(2000));
+    });
+
+    test('throws AdbError for non-existent package', () async {
+      expect(
+        () => d.appInfo('com.nonexistent.package.xyz'),
+        throwsA(isA<AdbError>()),
+      );
+    });
+  });
 }

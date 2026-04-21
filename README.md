@@ -94,7 +94,7 @@ await adb.disconnect('192.168.1.100:5555');
 ```dart
 // stream de eventos de conexão/desconexão
 await for (final event in adb.trackDevices()) {
-  print('${event.serial} — presente: ${event.present}');
+  print('${event.serial} — estado: ${event.state.name} — presente: ${event.present}');
 }
 ```
 
@@ -140,8 +140,11 @@ print(result.isSuccess);   // true/false
 ### Propriedades do dispositivo
 
 ```dart
+print(await d.prop.name);       // ro.product.name
 print(await d.prop.model);      // ro.product.model
+print(await d.prop.device);     // ro.product.device
 print(await d.prop.brand);      // ro.product.brand
+print(await d.prop.product);    // ro.product.name (alias)
 print(await d.prop.release);    // ro.build.version.release
 print(await d.prop.sdkVersion); // ro.build.version.sdk
 
@@ -177,9 +180,38 @@ await d.volumeDown(times: 3);               // volume -3
 await d.volumeMute();
 ```
 
+### Instalação e desinstalação de APK
+
+```dart
+// instalar APK
+String result = await d.install(apkPath: 'build/app.apk');
+print(result); // "Success"
+
+// flags disponíveis
+await d.install(
+  apkPath: 'build/app.apk',
+  replace: true,             // -r: substituir app existente
+  allowTest: true,           // -t: permitir APKs de teste
+  allowDowngrade: true,      // -d: permitir downgrade de versão
+  grantAllPermissions: true, // -g: conceder todas as permissões
+);
+
+// desinstalar pacote
+String result = await d.uninstall(packageName: 'com.example.app');
+print(result); // "Success"
+```
+
 ### Aplicativos
 
 ```dart
+// informações detalhadas de um pacote instalado
+AppInfo info = await d.appInfo('com.example.app');
+print(info.packageName);      // com.example.app
+print(info.versionName);      // 1.2.3
+print(info.versionCode);      // 42
+print(info.firstInstallTime); // DateTime
+print(info.lastUpdateTime);   // DateTime
+
 // listar pacotes instalados
 List<String> packages = await d.listPackages();
 List<String> thirdParty = await d.listPackages(thirdPartyOnly: true);
@@ -202,6 +234,9 @@ await d.forward('tcp:9999', 'localabstract:scrcpy');
 // remover forward
 await d.forwardRemove('tcp:9999');
 await d.forwardRemoveAll();
+
+// reverse: porta no dispositivo → host
+await d.reverse('tcp:8080', 'tcp:8080');
 ```
 
 ### Conexão de socket direto
@@ -228,19 +263,24 @@ String state  = await d.getState();
 
 ## Transferência de arquivos (`AdbSync`)
 
-> **⚠ Em implementação.** A API está definida mas o protocolo SYNC ainda está sendo implementado.
+> **⚠ Parcialmente implementado.** `push` está funcional. `pull`, `readBytes`, `readText` e `stat` ainda não foram implementados.
 
 ```dart
-// push: enviar arquivo para o dispositivo
+// push: enviar arquivo para o dispositivo (implementado ✔)
 await d.sync.push('/local/path/file.txt', '/sdcard/file.txt');
 await d.sync.push(Uint8List.fromList([...]), '/sdcard/data.bin');
+await d.sync.push(File('/local/image.png'), '/sdcard/image.png');
 
-// pull: baixar arquivo do dispositivo
+// pull: baixar arquivo do dispositivo (não implementado)
 await d.sync.pull('/sdcard/file.txt', '/local/path/file.txt');
 
-// ler diretamente como bytes ou texto
+// ler diretamente como bytes ou texto (não implementado)
 Uint8List bytes = await d.sync.readBytes('/sdcard/file.txt');
 String text     = await d.sync.readText('/sdcard/file.txt');
+
+// stat: informações do arquivo (não implementado)
+Map<String, int> info = await d.sync.stat('/sdcard/file.txt');
+// {'mode': int, 'size': int, 'mtime': int}
 ```
 
 ---
@@ -270,8 +310,9 @@ try {
 
 | Classe              | Descrição                                              |
 |---------------------|-------------------------------------------------------|
-| `DeviceInfo`        | Serial, estado, transport ID, model, product          |
+| `DeviceInfo`        | Serial, estado, transport ID, model, product, device  |
 | `DeviceState`       | `device`, `offline`, `unauthorized`, `recovery`, `unknown` |
+| `DeviceEvent`       | Serial, state, present — emitido por `trackDevices()` |
 | `ShellResult`       | Saída, returnCode, isSuccess                          |
 | `ForwardItem`       | Serial, endereço local, endereço remoto               |
 | `NetworkType`       | `tcp`, `unix`, `localAbstract`, `dev`, `jdwp`, …     |
