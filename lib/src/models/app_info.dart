@@ -35,8 +35,9 @@ class AppInfo {
     }
 
     final versionCodeMatch = RegExp(r'versionCode=(\d+)').firstMatch(output);
-    final versionCode =
-        versionCodeMatch != null ? int.parse(versionCodeMatch.group(1)!) : null;
+    final versionCode = versionCodeMatch != null
+        ? int.parse(versionCodeMatch.group(1)!)
+        : null;
 
     final versionNameMatch = RegExp(
       r'^\s*versionName=(.*)$',
@@ -48,14 +49,13 @@ class AppInfo {
     // Filter out epoch-sentinel values (year < 2000) and return the earliest
     // real install timestamp, which corresponds to the first user who installed
     // the package.
-    final firstInstallTimes = RegExp(
-      r'firstInstallTime=(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
-    )
-        .allMatches(output)
-        .map((m) => DateTime.tryParse(m.group(1)!.replaceFirst(' ', 'T')))
-        .whereType<DateTime>()
-        .where((dt) => dt.year >= 2000)
-        .toList();
+    final firstInstallTimes =
+        RegExp(r'firstInstallTime=(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+            .allMatches(output)
+            .map((m) => DateTime.tryParse(m.group(1)!.replaceFirst(' ', 'T')))
+            .whereType<DateTime>()
+            .where((dt) => dt.year >= 2000)
+            .toList();
     final firstInstallTime = firstInstallTimes.isEmpty
         ? null
         : firstInstallTimes.reduce((a, b) => a.isBefore(b) ? a : b);
@@ -64,9 +64,7 @@ class AppInfo {
       r'lastUpdateTime=(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})',
     ).firstMatch(output);
     final lastUpdateTime = lastUpdateMatch != null
-        ? DateTime.tryParse(
-            lastUpdateMatch.group(1)!.replaceFirst(' ', 'T'),
-          )
+        ? DateTime.tryParse(lastUpdateMatch.group(1)!.replaceFirst(' ', 'T'))
         : null;
 
     return AppInfo(

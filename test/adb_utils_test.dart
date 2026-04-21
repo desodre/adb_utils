@@ -89,11 +89,17 @@ void main() {
       expect(info.firstInstallTime, equals(DateTime(2024, 1, 1, 9, 0, 0)));
     });
 
-    test('returns earliest firstInstallTime when multiple real dates exist', () {
-      final info = AppInfo.fromDumpsys('com.android.settings', _dumpsysSystemApp);
-      // 2025-05-29 is earlier than 2025-06-12
-      expect(info.firstInstallTime, equals(DateTime(2025, 5, 29, 13, 5, 29)));
-    });
+    test(
+      'returns earliest firstInstallTime when multiple real dates exist',
+      () {
+        final info = AppInfo.fromDumpsys(
+          'com.android.settings',
+          _dumpsysSystemApp,
+        );
+        // 2025-05-29 is earlier than 2025-06-12
+        expect(info.firstInstallTime, equals(DateTime(2025, 5, 29, 13, 5, 29)));
+      },
+    );
 
     test('returns null optional fields for minimal output', () {
       final info = AppInfo.fromDumpsys('com.bare.app', _dumpsysMinimal);
