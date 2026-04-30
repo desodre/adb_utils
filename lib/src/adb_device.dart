@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show File, Socket, SocketException;
+import 'dart:io' show Platform, Socket, SocketException;
 import 'dart:typed_data';
 
 import 'exceptions.dart';
@@ -278,10 +278,10 @@ class AdbDevice {
 
   Future<void> volumeMute() => keyEvent('KEYCODE_VOLUME_MUTE');
 
-  /// Installs an APK, equivalent to `adb install [flags] <apkPath>`.
+  /// Installs an APK.
   ///
-  /// Streams the APK bytes directly to the device via
-  /// `exec:cmd package install -S <size>` — no temp file needed.
+  /// Pushes the APK to a temporary directory on the device and installs it
+  /// using `pm install`, matching the robust behavior of `adb install`.
   Future<String> install({
     required String apkPath,
     bool replace = false,
@@ -290,38 +290,37 @@ class AdbDevice {
     bool grantAllPermissions = false,
     bool instantApp = false,
   }) async {
-    final bytes = await File(apkPath).readAsBytes();
+    final fileName = apkPath.split(Platform.pathSeparator).last;
+    final remotePath = '/data/local/tmp/$fileName';
 
-    final args = <String>[];
+    // 1. Push APK to device
+    await sync.push(apkPath, remotePath);
+
+    // 2. Build install command
+    final args = <String>['pm', 'install'];
     if (replace) args.add('-r');
     if (allowTest) args.add('-t');
     if (allowDowngrade) args.add('-d');
     if (grantAllPermissions) args.add('-g');
     if (instantApp) args.add('--instant');
-    args.addAll(['-S', '${bytes.length}']);
+    args.add(remotePath);
 
-    final t = await client.transportFor(serial);
+    // 3. Execute installation and clean up
     try {
-      await t.sendCommand('exec:cmd package install ${args.join(' ')}');
-      t.socket.add(bytes);
-      await t.socket.flush();
-      final raw = await t.readAll();
-      return utf8.decode(raw, allowMalformed: true);
+      final result = await shell(args);
+      if (!result.contains('Success')) {
+        throw AdbInstallError(result.trim());
+      }
+      return result.trim();
     } finally {
-      await t.close();
+      await shell(['rm', '-f', remotePath]);
     }
   }
 
   /// Uninstalls a package, equivalent to `adb uninstall <packageName>`.
   Future<String> uninstall({required String packageName}) async {
-    final t = await client.transportFor(serial);
-    try {
-      await t.sendCommand('exec:cmd package uninstall $packageName');
-      final raw = await t.readAll();
-      return utf8.decode(raw, allowMalformed: true);
-    } finally {
-      await t.close();
-    }
+    final result = await shell('pm uninstall $packageName');
+    return result.trim();
   }
 
   @override

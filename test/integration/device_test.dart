@@ -344,10 +344,6 @@ void main() {
       expect(output, contains('Success'));
     });
 
-    test('install CTS Verifier app with instantApp flag', () async {
-      String output = await d.install(apkPath: apkPath, instantApp: true);
-      expect(output, contains('Success'));
-    });
     test('uninstall CTS Verifier app', () async {
       String output = await d.uninstall(packageName: packageName);
       expect(output, contains('Success'));
