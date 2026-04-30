@@ -117,9 +117,58 @@ class AdbSync {
   // ── Pull ──────────────────────────────────────────────────────────────────
 
   /// Pulls [remotePath] from the device to [localPath].
+  ///
+  /// Writes directly to the file stream to efficiently handle large files.
   Future<void> pull(String remotePath, String localPath) async {
-    final bytes = await readBytes(remotePath);
-    await io.File(localPath).writeAsBytes(bytes);
+    final t = await _device.client.transportFor(_device.serial);
+    io.IOSink? sink;
+    try {
+      await t.sendCommand('sync:');
+
+      // RECV <path>
+      final pathBytes = utf8.encode(remotePath);
+      final reqMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncRecv))
+        ..add(_le32(pathBytes.length))
+        ..add(pathBytes);
+      t.socket.add(reqMsg.toBytes());
+      await t.socket.flush();
+
+      sink = io.File(localPath).openWrite();
+
+      while (true) {
+        final id = utf8.decode(await t.readBytes(4));
+        if (id == _syncDone) {
+          await t.readBytes(4); // discard 0
+          break;
+        }
+        if (id == 'FAIL') {
+          final lenBytes = await t.readBytes(4);
+          final length = ByteData.view(
+            Uint8List.fromList(lenBytes).buffer,
+          ).getUint32(0, Endian.little);
+          final msg = utf8.decode(await t.readBytes(length));
+          throw AdbError('SYNC pull failed: $msg');
+        }
+        if (id != _syncData) throw AdbError('Expected DATA, got $id');
+
+        final lenBytes = await t.readBytes(4);
+        final length = ByteData.view(
+          Uint8List.fromList(lenBytes).buffer,
+        ).getUint32(0, Endian.little);
+        final chunk = await t.readBytes(length);
+        sink.add(chunk);
+      }
+    } finally {
+      await sink?.flush();
+      await sink?.close();
+
+      final quitMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncQuit))
+        ..add(_le32(0));
+      t.socket.add(quitMsg.toBytes());
+      await t.close();
+    }
   }
 
   /// Returns the raw bytes of a remote file.

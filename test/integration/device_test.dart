@@ -1,6 +1,8 @@
 @Tags(['device'])
 library;
 
+import 'dart:io';
+
 import 'package:adb_utils/adb_utils.dart';
 import 'package:test/test.dart';
 
@@ -289,6 +291,22 @@ void main() {
     test('readText returns correct string content', () async {
       final text = await d.sync.readText(remotePath);
       expect(text, equals(content));
+    });
+
+    test('pull downloads file correctly', () async {
+      final localFile = File(
+        '${Directory.systemTemp.path}/pulled_test_file.txt',
+      );
+      if (localFile.existsSync()) {
+        localFile.deleteSync();
+      }
+
+      await d.sync.pull(remotePath, localFile.path);
+
+      expect(localFile.existsSync(), isTrue);
+      expect(localFile.readAsStringSync(), equals(content));
+
+      localFile.deleteSync();
     });
   });
 
