@@ -151,12 +151,13 @@ ForegroundAppInfo app = await d.appCurrent();
 
 Operações via protocolo nativo de transferência ADB SYNC (`adb.sync`).
 
-> **⚠ Status:** `push`, `readBytes`, `readText` e `stat` implementados. `pull` ainda não suportado.
-
 ```dart
 // PUSH (Local -> Android)
 await d.sync.push('/caminho/local/file.txt', '/sdcard/file.txt');
 await d.sync.push(Uint8List.fromList([...]), '/sdcard/data.bin'); // direto da memoria
+
+// PULL (Android -> Local)
+await d.sync.pull('/sdcard/config.json', '/caminho/local/config.json'); // salva direto no disco (streaming)
 
 // READ (Android -> Memória Local)
 Uint8List bytes = await d.sync.readBytes('/sdcard/config.json');
