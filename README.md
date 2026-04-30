@@ -263,7 +263,7 @@ String state  = await d.getState();
 
 ## Transferência de arquivos (`AdbSync`)
 
-> **⚠ Parcialmente implementado.** `push` está funcional. `pull`, `readBytes`, `readText` e `stat` ainda não foram implementados.
+> **⚠ Parcialmente implementado.** `push`, `readBytes`, `readText` e `stat` estão funcionais. `pull` ainda não foi implementado.
 
 ```dart
 // push: enviar arquivo para o dispositivo (implementado ✔)
@@ -274,11 +274,11 @@ await d.sync.push(File('/local/image.png'), '/sdcard/image.png');
 // pull: baixar arquivo do dispositivo (não implementado)
 await d.sync.pull('/sdcard/file.txt', '/local/path/file.txt');
 
-// ler diretamente como bytes ou texto (não implementado)
+// ler diretamente como bytes ou texto (implementado ✔)
 Uint8List bytes = await d.sync.readBytes('/sdcard/file.txt');
 String text     = await d.sync.readText('/sdcard/file.txt');
 
-// stat: informações do arquivo (não implementado)
+// stat: informações do arquivo (implementado ✔)
 Map<String, int> info = await d.sync.stat('/sdcard/file.txt');
 // {'mode': int, 'size': int, 'mtime': int}
 ```
