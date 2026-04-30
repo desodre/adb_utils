@@ -6,6 +6,7 @@ import 'exceptions.dart';
 import 'models/network_type.dart';
 import 'models/shell_result.dart';
 import 'models/app_info.dart';
+import 'models/battery_info.dart';
 import 'adb_sync.dart';
 import 'adb_client.dart';
 
@@ -86,6 +87,12 @@ class AdbDevice {
   }
 
   // ── Device info ───────────────────────────────────────────────────────────
+
+  /// Returns battery information (level, temperature, status, etc.).
+  Future<BatteryInfo> battery() async {
+    final out = await shell('dumpsys battery');
+    return BatteryInfo.fromDumpsys(out);
+  }
 
   Future<String> getSerialNo() => shell('getprop ro.serialno');
   Future<String> getState() async {

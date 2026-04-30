@@ -26,7 +26,37 @@ const _dumpsysMinimal = '''
 Package [com.bare.app] (000000):
 ''';
 
+const _dumpsysBattery = '''
+Current Battery Service state:
+  AC powered: false
+  USB powered: true
+  Wireless powered: false
+  Max charging current: 3225000
+  Max charging voltage: 22000000
+  Charge counter: 3964000
+  status: 5
+  health: 2
+  present: true
+  level: 100
+  scale: 100
+  voltage: 4449
+  temperature: 240
+  technology: Li-poly
+  Charging state: 0
+''';
+
 void main() {
+  group('BatteryInfo', () {
+    test('parses dumpsys output correctly', () {
+      final info = BatteryInfo.fromDumpsys(_dumpsysBattery);
+      expect(info.level, equals(100));
+      expect(info.temperature, equals(24.0)); // 240 / 10
+      expect(info.status, equals(BatteryStatus.full)); // status: 5
+      expect(info.usbPowered, isTrue);
+      expect(info.acPowered, isFalse);
+    });
+  });
+
   group('DeviceState', () {
     test('parses known states', () {
       expect(DeviceState.parse('device'), DeviceState.device);

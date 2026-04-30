@@ -350,6 +350,19 @@ void main() {
     });
   });
 
+  group('AdbDevice.battery', () {
+    test('returns valid battery info', () async {
+      final battery = await d.battery();
+
+      expect(battery.level, inInclusiveRange(0, 100));
+      expect(battery.temperature, isPositive);
+      expect(battery.status, isNot(equals(BatteryStatus.unknown)));
+      // usbPowered and acPowered can be true or false, so just assert they are bools
+      expect(battery.usbPowered, isA<bool>());
+      expect(battery.acPowered, isA<bool>());
+    });
+  });
+
   group('AdbDevice.appInfo', () {
     test('returns AppInfo for installed package', () async {
       final info = await d.appInfo('com.android.settings');
