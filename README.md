@@ -2,26 +2,42 @@
 
 [![pub.dev](https://img.shields.io/pub/v/adb_utils.svg)](https://pub.dev/packages/adb_utils)
 [![Dart](https://img.shields.io/badge/Dart-%3E%3D3.11-blue)](https://dart.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Biblioteca Dart para interagir com o servidor ADB (Android Debug Bridge) e dispositivos Android via protocolo socket nativo — inspirada em [openatx/adbutils](https://github.com/openatx/adbutils) para Python.
+Biblioteca Dart para interagir com o servidor ADB (Android Debug Bridge) e dispositivos Android via protocolo socket nativo. Inspirada na biblioteca [openatx/adbutils](https://github.com/openatx/adbutils) do Python.
+
+Esta biblioteca se comunica diretamente com o servidor ADB local via TCP (`127.0.0.1:5037`), eliminando a necessidade de invocar processos shell (executáveis `adb`) de forma ineficiente a todo momento.
 
 ---
 
-## Requisitos
+## Recursos (Features)
+
+- **Gestão de Dispositivos**: Listar, conectar, desconectar e monitorar estado de dispositivos.
+- **Execução Shell**: Executar comandos, com captura de saída e códigos de erro (`returnCode`).
+- **Instalação e Aplicativos**: Instalar/desinstalar APKs (via streaming de bytes) e obter informações avançadas de apps (`dumpsys`).
+- **Interação**: Capturar tela (screenshot) em bytes nativos, simular toques, deslizes e teclas (keyevents).
+- **Socket & Forwarding**: Criar port forwards locais/reversos e até obter conexões Socket raw nativas para serviços dentro do dispositivo Android.
+- **SYNC Nativo (Transferência de Arquivos)**: Enviar (`push`), ler (`readBytes`, `readText`) e consultar (`stat`) arquivos diretamente usando o protocolo ADB SYNC.
+
+---
+
+## Primeiros Passos (Getting Started)
+
+### Requisitos
 
 - Dart SDK `^3.11.4`
-- ADB instalado e o servidor em execução (`adb start-server`)
+- ADB (Android Debug Bridge) instalado no sistema e o servidor em execução (`adb start-server`).
 
----
+### Instalação
 
-## Instalação
-
-Adicione ao `pubspec.yaml`:
+Adicione o pacote `adb_utils` ao seu arquivo `pubspec.yaml`:
 
 ```yaml
 dependencies:
   adb_utils: ^0.1.0
 ```
+
+E instale rodando:
 
 ```sh
 dart pub get
@@ -29,7 +45,9 @@ dart pub get
 
 ---
 
-## Uso rápido
+## Uso (Usage)
+
+Aqui está um exemplo rápido de como se conectar ao ADB e ler o modelo de um dispositivo:
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';
@@ -37,23 +55,29 @@ import 'package:adb_utils/adb_utils.dart';
 void main() async {
   final adb = AdbClient();
 
-  // listar dispositivos
+  // Listar todos os dispositivos conectados
   for (final d in await adb.deviceList()) {
-    print('${d.serial}  ${d.state.name}  ${d.model ?? ''}');
+    print('${d.serial} - ${d.state.name} - ${d.model ?? ''}');
   }
 
-  // obter dispositivo (único conectado)
-  final d = await adb.device();
-  print(await d.prop.model);         // ex: "Pixel 7"
-  print(await d.shell('uname -r'));  // versão do kernel
+  // Obter um dispositivo (Lança erro se houver mais de um ou nenhum)
+  final device = await adb.device();
+  
+  // Ler propriedades via `getprop` com cache nativo opcional
+  print(await device.prop.model);        // ex: "Pixel 7"
+  
+  // Executar um comando shell
+  print(await device.shell('uname -r')); // versão do kernel
 }
 ```
 
 ---
 
-## AdbClient
+## API Detalhada
 
-Ponto de entrada da biblioteca. Conecta ao servidor ADB (padrão `127.0.0.1:5037`).
+### `AdbClient`
+
+O `AdbClient` é a porta de entrada da biblioteca. Representa a conexão com o servidor do ADB na sua máquina.
 
 ```dart
 final adb = AdbClient(
@@ -61,301 +85,102 @@ final adb = AdbClient(
   port: 5037,
   socketTimeout: Duration(seconds: 10),
 );
-```
 
-### Dispositivos
+// Obter dispositivo via serial ou ID de transporte
+final d1 = await adb.device(serial: '8d1f93be');
+final d2 = await adb.device(transportId: 24);
 
-```dart
-// todos os dispositivos
-List<DeviceInfo> devices = await adb.deviceList();
+// Conectar via TCP (ex: adb connect)
+await adb.connect('192.168.1.100:5555');
 
-// selecionar por serial
-AdbDevice d = await adb.device(serial: '8d1f93be');
-
-// selecionar por transport ID
-AdbDevice d = await adb.device(transportId: 24);
-
-// único dispositivo conectado (erro se zero ou múltiplos)
-AdbDevice d = await adb.device();
-```
-
-### Conectar dispositivo remoto
-
-```dart
-// equivalente a: adb connect 192.168.1.100:5555
-String result = await adb.connect('192.168.1.100:5555');
-
-// desconectar
-await adb.disconnect('192.168.1.100:5555');
-```
-
-### Monitorar dispositivos
-
-```dart
-// stream de eventos de conexão/desconexão
+// Monitorar eventos de conexão/desconexão em tempo real
 await for (final event in adb.trackDevices()) {
-  print('${event.serial} — estado: ${event.state.name} — presente: ${event.present}');
+  print('${event.serial} conectado? ${event.present}');
 }
 ```
 
-### Forwards globais
+### `AdbDevice`
 
+A classe `AdbDevice` representa um Android específico.
+
+**Shell & Propriedades**
 ```dart
-// listar todos os forwards ativos
-List<ForwardItem> forwards = await adb.forwardList();
+String out = await d.shell('ls -l /sdcard');
 
-// filtrar por dispositivo
-List<ForwardItem> forwards = await adb.forwardList(serial: '8d1f93be');
+// O shell2 retorna um ShellResult com o código de saída (returnCode) e sucesso.
+ShellResult result = await d.shell2('ls /root');
+print(result.returnCode); // 0 = sucesso, outro = erro.
+
+// Atalhos rápidos para propriedades (getprop)
+print(await d.prop.sdkVersion); // ex: "33"
 ```
 
-### Servidor
-
+**Informação de Tela e Screenshots**
 ```dart
-int version = await adb.serverVersion(); // ex: 39
-await adb.killServer();
-```
+var (width, height) = await d.windowSize();
+bool isScreenOn = await d.isScreenOn();
 
----
-
-## AdbDevice
-
-Obtido via `adb.device(...)`. Representa um dispositivo Android conectado.
-
-### Shell
-
-```dart
-// saída como String (stdout + stderr)
-String output = await d.shell('getprop ro.product.model');
-
-// aceita lista
-String output = await d.shell(['getprop', 'ro.product.model']);
-
-// com código de saída
-ShellResult result = await d.shell2('ls /sdcard');
-print(result.output);      // saída do comando
-print(result.returnCode);  // 0 = sucesso
-print(result.isSuccess);   // true/false
-```
-
-### Propriedades do dispositivo
-
-```dart
-print(await d.prop.name);       // ro.product.name
-print(await d.prop.model);      // ro.product.model
-print(await d.prop.device);     // ro.product.device
-print(await d.prop.brand);      // ro.product.brand
-print(await d.prop.product);    // ro.product.name (alias)
-print(await d.prop.release);    // ro.build.version.release
-print(await d.prop.sdkVersion); // ro.build.version.sdk
-
-// qualquer prop, com cache opcional
-String val = await d.prop.get('ro.board.platform', cache: true);
-```
-
-### Informações de tela
-
-```dart
-var (width, height) = await d.windowSize(); // (1080, 1920)
-int rot = await d.rotation(); // 0=portrait, 1=left, 2=right, 3=upsidedown
-bool on = await d.isScreenOn();
-```
-
-### Screenshot
-
-```dart
-// retorna bytes PNG
+// Pega um print da tela diretamente em binário (sem salvar num arquivo no celular)
 Uint8List png = await d.screenshot();
-await File('screen.png').writeAsBytes(png);
 ```
 
-### Input / controle
-
+**Toques e Teclas**
 ```dart
-await d.click(540, 960);                     // toque em coordenada
-await d.swipe(100, 500, 100, 200, 0.3);      // swipe em 300ms
-await d.sendKeys('Hello World');             // digitar texto
-await d.keyEvent('KEYCODE_HOME');            // tecla HOME
-await d.volumeUp();                          // volume +1
-await d.volumeDown(times: 3);               // volume -3
-await d.volumeMute();
+await d.click(540, 960);
+await d.swipe(100, 500, 100, 200, 0.3); // X,Y inicio -> X,Y fim em 0.3s
+await d.sendKeys('Olá Mundo!');
+await d.keyEvent('KEYCODE_HOME');
 ```
 
-### Instalação e desinstalação de APK
-
+**Gerenciamento de APK e Pacotes**
 ```dart
-// instalar APK
-String result = await d.install(apkPath: 'build/app.apk');
-print(result); // "Success"
-
-// flags disponíveis
+// Instala APK por streaming de Socket (não precisa dar push no arquivo)
 await d.install(
   apkPath: 'build/app.apk',
-  replace: true,             // -r: substituir app existente
-  allowTest: true,           // -t: permitir APKs de teste
-  allowDowngrade: true,      // -d: permitir downgrade de versão
-  grantAllPermissions: true, // -g: conceder todas as permissões
+  replace: true, 
+  grantAllPermissions: true,
 );
 
-// desinstalar pacote
-String result = await d.uninstall(packageName: 'com.example.app');
-print(result); // "Success"
-```
+await d.uninstall(packageName: 'com.example.app');
 
-### Aplicativos
-
-```dart
-// informações detalhadas de um pacote instalado
-AppInfo info = await d.appInfo('com.example.app');
-print(info.packageName);      // com.example.app
-print(info.versionName);      // 1.2.3
-print(info.versionCode);      // 42
-print(info.firstInstallTime); // DateTime
-print(info.lastUpdateTime);   // DateTime
-
-// listar pacotes instalados
-List<String> packages = await d.listPackages();
-List<String> thirdParty = await d.listPackages(thirdPartyOnly: true);
-
-// app em primeiro plano
+// Obter App ativo na tela
 ForegroundAppInfo app = await d.appCurrent();
-print(app.packageName);
-print(app.activity);
-
-// abrir URL no browser
-await d.openBrowser('https://flutter.dev');
 ```
 
-### Port forward / reverse
+### Transferência de Arquivos (`AdbSync`)
+
+Operações via protocolo nativo de transferência ADB SYNC (`adb.sync`).
+
+> **⚠ Status:** `push`, `readBytes`, `readText` e `stat` implementados. `pull` ainda não suportado.
 
 ```dart
-// forward: tcp:9999 no host → porta local do dispositivo
-await d.forward('tcp:9999', 'localabstract:scrcpy');
+// PUSH (Local -> Android)
+await d.sync.push('/caminho/local/file.txt', '/sdcard/file.txt');
+await d.sync.push(Uint8List.fromList([...]), '/sdcard/data.bin'); // direto da memoria
 
-// remover forward
-await d.forwardRemove('tcp:9999');
-await d.forwardRemoveAll();
+// READ (Android -> Memória Local)
+Uint8List bytes = await d.sync.readBytes('/sdcard/config.json');
+String texto    = await d.sync.readText('/sdcard/config.json');
 
-// reverse: porta no dispositivo → host
-await d.reverse('tcp:8080', 'tcp:8080');
-```
-
-### Conexão de socket direto
-
-```dart
-// criar conexão raw com serviço no dispositivo
-import 'dart:io';
-
-Socket socket = await d.createConnection(NetworkType.localAbstract, 'minitouch');
-// usar socket normalmente...
-await socket.close();
-```
-
-### Utilitários
-
-```dart
-await d.root();          // reinicia adbd como root
-await d.tcpip(5555);     // habilita ADB via TCP na porta 5555
-String serial = await d.getSerialNo();
-String state  = await d.getState();
-```
-
----
-
-## Transferência de arquivos (`AdbSync`)
-
-> **⚠ Parcialmente implementado.** `push`, `readBytes`, `readText` e `stat` estão funcionais. `pull` ainda não foi implementado.
-
-```dart
-// push: enviar arquivo para o dispositivo (implementado ✔)
-await d.sync.push('/local/path/file.txt', '/sdcard/file.txt');
-await d.sync.push(Uint8List.fromList([...]), '/sdcard/data.bin');
-await d.sync.push(File('/local/image.png'), '/sdcard/image.png');
-
-// pull: baixar arquivo do dispositivo (não implementado)
-await d.sync.pull('/sdcard/file.txt', '/local/path/file.txt');
-
-// ler diretamente como bytes ou texto (implementado ✔)
-Uint8List bytes = await d.sync.readBytes('/sdcard/file.txt');
-String text     = await d.sync.readText('/sdcard/file.txt');
-
-// stat: informações do arquivo (implementado ✔)
+// STAT (Ler informações de tamanho e modificação)
 Map<String, int> info = await d.sync.stat('/sdcard/file.txt');
-// {'mode': int, 'size': int, 'mtime': int}
+// retorna algo como: {'mode': 33188, 'size': 1024, 'mtime': 16843453}
 ```
 
 ---
 
-## Tratamento de erros
+## Tratamento de Erros
 
-```dart
-try {
-  final d = await adb.device();
-  await d.shell('comando');
-} on AdbTimeout catch (e) {
-  print('Timeout: $e');
-} on AdbError catch (e) {
-  print('Erro ADB: $e');
-}
-```
+A biblioteca encapsula retornos malsucedidos em três exceções baseadas em `Exception` no arquivo `exceptions.dart`:
 
-| Exceção           | Quando ocorre                                          |
-|-------------------|-------------------------------------------------------|
-| `AdbError`        | Servidor retorna `FAIL` ou resposta inesperada        |
-| `AdbTimeout`      | Comando ou conexão ultrapassa o timeout               |
-| `AdbInstallError` | Falha no `adb install`                                |
-
----
-
-## Modelos de dados
-
-| Classe              | Descrição                                              |
-|---------------------|-------------------------------------------------------|
-| `DeviceInfo`        | Serial, estado, transport ID, model, product, device  |
-| `DeviceState`       | `device`, `offline`, `unauthorized`, `recovery`, `unknown` |
-| `DeviceEvent`       | Serial, state, present — emitido por `trackDevices()` |
-| `ShellResult`       | Saída, returnCode, isSuccess                          |
-| `ForwardItem`       | Serial, endereço local, endereço remoto               |
-| `NetworkType`       | `tcp`, `unix`, `localAbstract`, `dev`, `jdwp`, …     |
-| `AppInfo`           | packageName, versionName, versionCode, timestamps     |
-| `ForegroundAppInfo` | packageName, activity, pid                            |
-
----
-
-## Executar via linha de comando
-
-```sh
-# lista dispositivos conectados
-dart run
-```
-
----
-
-## Desenvolvimento
-
-```sh
-dart analyze   # lint
-dart format .  # formatar código
-
-# Testes unitários (sem dependências externas)
-dart test test/adb_utils_test.dart
-dart test --name "nome do teste"   # teste único por nome
-
-# Testes de integração — requer servidor ADB rodando (adb start-server)
-dart test --tags integration
-
-# Testes de dispositivo — requer device/emulator conectado
-dart test --tags device
-
-# Todos os testes (inclui integração e device)
-dart test
-
-# CI sem dispositivo
-dart test --exclude-tags device
-```
+| Exceção | Descrição |
+| --- | --- |
+| `AdbError` | O servidor ADB retornou um status `FAIL` ou uma resposta malformada de protocolo. |
+| `AdbTimeout` | O socket atingiu o timeout limite ou uma conexão de shell perdeu acesso. |
+| `AdbInstallError` | Erro específico reportado por sessão de instalação (`install`). |
 
 ---
 
 ## Licença
 
-[MIT](LICENSE)
-
+Este projeto é distribuído sob a licença [MIT](LICENSE).
