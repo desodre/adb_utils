@@ -82,14 +82,20 @@ class AppInfo {
 
 /// Current foreground app info.
 class ForegroundAppInfo {
+  /// Creates a new [ForegroundAppInfo] object.
   const ForegroundAppInfo({
     required this.packageName,
     required this.activity,
     this.pid,
   });
 
+  /// The application package name.
   final String packageName;
+
+  /// The active activity name.
   final String activity;
+
+  /// The process ID.
   final int? pid;
 
   @override

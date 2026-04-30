@@ -12,11 +12,13 @@ import 'adb_client.dart';
 
 /// Provides access to device properties (equivalent to Python's `d.prop`).
 class DeviceProperties {
+  /// Internal constructor.
   DeviceProperties(this._device);
 
   final AdbDevice _device;
   final _cache = <String, String>{};
 
+  /// Gets a device property dynamically using `getprop`.
   Future<String> get(String key, {bool cache = false}) async {
     if (cache && _cache.containsKey(key)) return _cache[key]!;
     final value = (await _device.shell('getprop $key')).trim();
@@ -24,12 +26,25 @@ class DeviceProperties {
     return value;
   }
 
+  /// Device name (`ro.product.name`).
   Future<String> get name => get('ro.product.name');
+
+  /// Device model (`ro.product.model`).
   Future<String> get model => get('ro.product.model');
+
+  /// Device product type (`ro.product.device`).
   Future<String> get device => get('ro.product.device');
+
+  /// Device brand (`ro.product.brand`).
   Future<String> get brand => get('ro.product.brand');
+
+  /// Android SDK version (`ro.build.version.sdk`).
   Future<String> get sdkVersion => get('ro.build.version.sdk');
+
+  /// Android release version (`ro.build.version.release`).
   Future<String> get release => get('ro.build.version.release');
+
+  /// Product alias (`ro.product.name`).
   Future<String> get product => get('ro.product.name');
 }
 
@@ -37,12 +52,21 @@ class DeviceProperties {
 ///
 /// Obtain via [AdbClient.device].
 class AdbDevice {
+  /// Creates a new device representation for the given [serial].
+  ///
+  /// Requires the [AdbClient] used to communicate with the ADB server.
   AdbDevice({required this.serial, required this.client});
 
+  /// The unique serial number of this device.
   final String serial;
+
+  /// The client connection to the ADB server.
   final AdbClient client;
 
+  /// Access to device properties (e.g., `ro.product.model`).
   late final prop = DeviceProperties(this);
+
+  /// Access to file transfer operations via the SYNC protocol.
   late final sync = AdbSync(this);
 
   // ── Shell ─────────────────────────────────────────────────────────────────

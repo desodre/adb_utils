@@ -34,14 +34,24 @@ class DeviceEvent {
 /// print(await d.shell('getprop ro.product.model'));
 /// ```
 class AdbClient {
+  /// Creates a new client instance for communicating with the ADB server.
+  ///
+  /// [host] defaults to '127.0.0.1'.
+  /// [port] defaults to 5037.
+  /// [socketTimeout] defaults to 10 seconds.
   AdbClient({
     this.host = '127.0.0.1',
     this.port = 5037,
     this.socketTimeout = const Duration(seconds: 10),
   });
 
+  /// The hostname or IP address of the ADB server.
   final String host;
+
+  /// The port on which the ADB server is listening.
   final int port;
+
+  /// The maximum duration to wait when establishing a socket connection.
   final Duration socketTimeout;
 
   /// Opens a fresh transport to the ADB server.
