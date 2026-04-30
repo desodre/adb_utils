@@ -105,6 +105,30 @@ class AdbDevice {
     }
   }
 
+  /// Returns current screen brightness (0-255).
+  Future<int> getBrightness() async {
+    final out = await shell('settings get system screen_brightness');
+    return int.tryParse(out.trim()) ?? 0;
+  }
+
+  /// Sets screen brightness (0-255).
+  Future<void> setBrightness(int value) async {
+    final clamped = value.clamp(0, 255);
+    await shell('settings put system screen_brightness $clamped');
+  }
+
+  /// Returns brightness mode (0=manual, 1=auto).
+  Future<int> getBrightnessMode() async {
+    final out = await shell('settings get system screen_brightness_mode');
+    return int.tryParse(out.trim()) ?? 0;
+  }
+
+  /// Sets brightness mode (0=manual, 1=auto).
+  Future<void> setBrightnessMode(int mode) async {
+    final clamped = mode == 1 ? 1 : 0;
+    await shell('settings put system screen_brightness_mode $clamped');
+  }
+
   /// Returns (width, height) of the display.
   Future<(int, int)> windowSize() async {
     final out = await shell('wm size');

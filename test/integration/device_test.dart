@@ -363,6 +363,36 @@ void main() {
     });
   });
 
+  group('AdbDevice.brightness', () {
+    test('can read and set brightness value and mode', () async {
+      // 1. Read original values
+      final originalBrightness = await d.getBrightness();
+      final originalMode = await d.getBrightnessMode();
+
+      try {
+        // 2. Set to manual mode to ensure brightness changes take effect immediately
+        await d.setBrightnessMode(0);
+        final manualMode = await d.getBrightnessMode();
+        expect(manualMode, equals(0));
+
+        // 3. Test changing brightness value
+        final testValue = originalBrightness == 100 ? 120 : 100;
+        await d.setBrightness(testValue);
+        final newBrightness = await d.getBrightness();
+        expect(newBrightness, equals(testValue));
+
+        // 4. Test changing mode to Auto
+        await d.setBrightnessMode(1);
+        final autoMode = await d.getBrightnessMode();
+        expect(autoMode, equals(1));
+      } finally {
+        // 5. Restore original state
+        await d.setBrightness(originalBrightness);
+        await d.setBrightnessMode(originalMode);
+      }
+    });
+  });
+
   group('AdbDevice.appInfo', () {
     test('returns AppInfo for installed package', () async {
       final info = await d.appInfo('com.android.settings');
