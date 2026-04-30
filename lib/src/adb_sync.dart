@@ -124,8 +124,51 @@ class AdbSync {
 
   /// Returns the raw bytes of a remote file.
   Future<Uint8List> readBytes(String remotePath) async {
-    // TODO: Implement full ADB SYNC protocol RECV command
-    throw UnimplementedError('SYNC readBytes not yet implemented');
+    final t = await _device.client.transportFor(_device.serial);
+    try {
+      await t.sendCommand('sync:');
+
+      // RECV <path>
+      final pathBytes = utf8.encode(remotePath);
+      final reqMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncRecv))
+        ..add(_le32(pathBytes.length))
+        ..add(pathBytes);
+      t.socket.add(reqMsg.toBytes());
+      await t.socket.flush();
+
+      final out = BytesBuilder(copy: false);
+      while (true) {
+        final id = utf8.decode(await t.readBytes(4));
+        if (id == _syncDone) {
+          await t.readBytes(4); // discard 0
+          break;
+        }
+        if (id == 'FAIL') {
+          final lenBytes = await t.readBytes(4);
+          final length = ByteData.view(
+            Uint8List.fromList(lenBytes).buffer,
+          ).getUint32(0, Endian.little);
+          final msg = utf8.decode(await t.readBytes(length));
+          throw AdbError('SYNC recv failed: $msg');
+        }
+        if (id != _syncData) throw AdbError('Expected DATA, got $id');
+
+        final lenBytes = await t.readBytes(4);
+        final length = ByteData.view(
+          Uint8List.fromList(lenBytes).buffer,
+        ).getUint32(0, Endian.little);
+        final chunk = await t.readBytes(length);
+        out.add(chunk);
+      }
+      return out.toBytes();
+    } finally {
+      final quitMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncQuit))
+        ..add(_le32(0));
+      t.socket.add(quitMsg.toBytes());
+      await t.close();
+    }
   }
 
   /// Returns the text content of a remote file.
@@ -134,7 +177,7 @@ class AdbSync {
     String encoding = 'utf-8',
   }) async {
     final bytes = await readBytes(remotePath);
-    return utf8.decode(bytes);
+    return utf8.decode(bytes, allowMalformed: true);
   }
 
   // ── Stat ──────────────────────────────────────────────────────────────────
@@ -142,7 +185,45 @@ class AdbSync {
   /// Returns basic stat info for [remotePath].
   /// Result: `{'mode': int, 'size': int, 'mtime': int}`
   Future<Map<String, int>> stat(String remotePath) async {
-    // TODO: Implement ADB SYNC STAT command
-    throw UnimplementedError('SYNC stat not yet implemented');
+    final t = await _device.client.transportFor(_device.serial);
+    try {
+      await t.sendCommand('sync:');
+
+      // STAT <path>
+      final pathBytes = utf8.encode(remotePath);
+      final reqMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncStat))
+        ..add(_le32(pathBytes.length))
+        ..add(pathBytes);
+      t.socket.add(reqMsg.toBytes());
+      await t.socket.flush();
+
+      final id = utf8.decode(await t.readBytes(4));
+      if (id != _syncStat) {
+        throw AdbError('Expected STAT, got $id');
+      }
+
+      final modeBytes = await t.readBytes(4);
+      final sizeBytes = await t.readBytes(4);
+      final mtimeBytes = await t.readBytes(4);
+
+      final mode = ByteData.view(
+        Uint8List.fromList(modeBytes).buffer,
+      ).getUint32(0, Endian.little);
+      final size = ByteData.view(
+        Uint8List.fromList(sizeBytes).buffer,
+      ).getUint32(0, Endian.little);
+      final mtime = ByteData.view(
+        Uint8List.fromList(mtimeBytes).buffer,
+      ).getUint32(0, Endian.little);
+
+      return {'mode': mode, 'size': size, 'mtime': mtime};
+    } finally {
+      final quitMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncQuit))
+        ..add(_le32(0));
+      t.socket.add(quitMsg.toBytes());
+      await t.close();
+    }
   }
 }
