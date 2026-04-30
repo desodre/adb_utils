@@ -263,12 +263,11 @@ void main() {
 
   // ── AdbSync ───────────────────────────────────────────────────────────────
 
-  group('AdbSync (via shell workaround)', () {
+  group('AdbSync', () {
     const remotePath = '/data/local/tmp/adb_utils_test_file.txt';
     const content = 'adb_utils integration test content';
 
     setUp(() async {
-      // Write test file via shell (sync push not yet implemented)
       await d.shell('echo -n "$content" > $remotePath');
     });
 
@@ -276,16 +275,20 @@ void main() {
       await d.shell('rm -f $remotePath');
     });
 
-    test('shell can create and verify a file', () async {
-      final out = await d.shell('cat $remotePath');
-      expect(out.trim(), equals(content));
+    test('stat returns correct file size and mode', () async {
+      final info = await d.sync.stat(remotePath);
+      expect(info['size'], equals(content.length));
+      expect(info['mode'], isPositive);
     });
 
-    test('file size is correct', () async {
-      final result = await d.shell2('wc -c < $remotePath');
-      expect(result.isSuccess, isTrue);
-      final size = int.tryParse(result.output.trim());
-      expect(size, equals(content.length));
+    test('readBytes returns correct content', () async {
+      final bytes = await d.sync.readBytes(remotePath);
+      expect(String.fromCharCodes(bytes), equals(content));
+    });
+
+    test('readText returns correct string content', () async {
+      final text = await d.sync.readText(remotePath);
+      expect(text, equals(content));
     });
   });
 
