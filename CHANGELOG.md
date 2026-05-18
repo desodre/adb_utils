@@ -1,3 +1,14 @@
+## 0.3.0
+
+- **feat(phantom)**: added `PhantomClient` to orchestrate UiAutomator agent lifecycle and TCP communication.
+  - Added `startAgent(targetApkPath, agentApkPath)` with APK push, install, force-stop, background instrumentation start, and port forwarding.
+  - Added JSON socket communication flow with robust chunked response handling.
+  - Added `dumpWindow()` and `clickByText()` high-level actions.
+- **test(phantom)**: added focused unit tests for `startAgent`, JSON payload exchange, `dumpWindow()`, and `clickByText()`.
+- **chore(phantom)**: added bundled APK artifacts for the phantom flow:
+  - `lib/src/phantom/apks/agent.apk`
+  - `lib/src/phantom/apks/target.apk`
+
 ## 0.2.2
 
 - **feat(adb_sync)**: fully implemented file transfer operations via the ADB SYNC protocol.
