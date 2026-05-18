@@ -91,7 +91,9 @@ class UiNode {
       password: element.getAttribute('password') == 'true',
       selected: element.getAttribute('selected') == 'true',
       visibleToUser: element.getAttribute('visible-to-user') == 'true',
-      bounds: Bounds.fromXmlString(element.getAttribute('bounds') ?? '[0,0][0,0]'),
+      bounds: Bounds.fromXmlString(
+        element.getAttribute('bounds') ?? '[0,0][0,0]',
+      ),
       drawingOrder:
           int.tryParse(element.getAttribute('drawing-order') ?? '0') ?? 0,
       hint: element.getAttribute('hint') ?? '',
@@ -120,7 +122,6 @@ class Bounds {
   Map<String, double> get center => {'x': (x2 + x1) / 2, 'y': (y2 + y1) / 2};
   double get width => (x2 - x1).toDouble();
   double get height => (y2 - y1).toDouble();
-
 
   factory Bounds.fromXmlString(String xmlString) {
     final Map<String, int> parsedBounds = parseBounds(xmlString);

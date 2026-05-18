@@ -1,3 +1,7 @@
+## 0.3.2
+
+- chore: apply `dart format` across project files required by CI/release workflow.
+
 ## 0.3.1
 
 - **feat(ui_hierarchy)**: added typed UI hierarchy model and package export.

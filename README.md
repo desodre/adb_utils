@@ -35,7 +35,7 @@ Adicione o pacote `adb_utils` ao seu arquivo `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.3.1
+  adb_utils: ^0.3.2
 ```
 
 E instale rodando:
