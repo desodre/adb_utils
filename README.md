@@ -18,6 +18,7 @@ Esta biblioteca se comunica diretamente com o servidor ADB local via TCP (`127.0
 - **Interação**: Capturar tela (screenshot) em bytes nativos, simular toques, deslizes e teclas (keyevents).
 - **Socket & Forwarding**: Criar port forwards locais/reversos e até obter conexões Socket raw nativas para serviços dentro do dispositivo Android.
 - **SYNC Nativo (Transferência de Arquivos)**: Enviar (`push`), ler (`readBytes`, `readText`) e consultar (`stat`) arquivos diretamente usando o protocolo ADB SYNC.
+- **Phantom (UiAutomator Agent)**: Orquestrar instalação/start do agente de teste instrumentado e enviar ações JSON via TCP (`dumpWindow`, `clickByText`).
 
 ---
 
@@ -34,7 +35,7 @@ Adicione o pacote `adb_utils` ao seu arquivo `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.2.2
+  adb_utils: ^0.3.1
 ```
 
 E instale rodando:
@@ -167,6 +168,35 @@ String texto    = await d.sync.readText('/sdcard/config.json');
 Map<String, int> info = await d.sync.stat('/sdcard/file.txt');
 // retorna algo como: {'mode': 33188, 'size': 1024, 'mtime': 16843453}
 ```
+
+### UiAutomator Agent (`PhantomClient`)
+
+Para automações de UI via agente instrumentado:
+
+```dart
+import 'package:adb_utils/adb_utils.dart';
+import 'package:adb_utils/src/phantom/phantom_client.dart';
+
+final adb = AdbClient();
+final d = await adb.device();
+
+final phantom = PhantomClient(device: d, port: 9008);
+
+await phantom.startAgent(
+  'lib/src/phantom/apks/target.apk',
+  'lib/src/phantom/apks/agent.apk',
+);
+
+final xml = await phantom.dumpWindow();
+final hierarchy = await phantom.dumpWindowHierarchy();
+final clicked = await phantom.clickByText('Entrar');
+
+print(xml);
+print('rotation => ${hierarchy.rotation}');
+print('clickByText => $clicked');
+```
+
+`startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp`, instalação (`pm install -t -r`), `force-stop` do agente antigo, start do instrumented test em background (`nohup ... &`) e `adb forward tcp:<port>`.
 
 ---
 

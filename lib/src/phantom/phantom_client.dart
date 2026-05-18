@@ -1,12 +1,26 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import '../adb_device.dart';
+import '../models/ui_hierarchy.dart';
 
 /// Client responsible for installing and communicating with the Phantom
 /// UiAutomator agent running on an Android device.
 class PhantomClient {
-  PhantomClient({required this.device, this.port = 9008});
+  PhantomClient({required this.device, this.port = 9008}) {
+    if (port < 1 || port > 65535) {
+      throw ArgumentError.value(
+        port,
+        'port',
+        'Port must be between 1 and 65535',
+      );
+    }
+  }
+
+  static const Duration _connectTimeout = Duration(seconds: 5);
+  static const Duration _responseTimeout = Duration(seconds: 10);
+  static const int _maxResponseBytes = 1024 * 1024;
 
   /// Target device used for all ADB operations.
   final AdbDevice device;
@@ -44,13 +58,26 @@ class PhantomClient {
   ) async {
     Socket? socket;
     try {
-      socket = await Socket.connect('127.0.0.1', port);
+      socket = await Socket.connect(
+        '127.0.0.1',
+        port,
+        timeout: _connectTimeout,
+      );
       socket.writeln(jsonEncode(payload));
       await socket.flush();
 
       final bytes = <int>[];
-      await for (final chunk in socket) {
+      await for (final chunk in socket.timeout(_responseTimeout)) {
         bytes.addAll(chunk);
+        if (bytes.length > _maxResponseBytes) {
+          throw Exception(
+            'Phantom agent response exceeded $_maxResponseBytes bytes',
+          );
+        }
+      }
+
+      if (bytes.isEmpty) {
+        throw Exception('Empty response from Phantom agent');
       }
 
       final decoded = jsonDecode(utf8.decode(bytes)) as Object?;
@@ -74,6 +101,12 @@ class PhantomClient {
     throw Exception(
       'Failed to dump window: ${response['message'] ?? response}',
     );
+  }
+
+  /// Requests and parses the current UI hierarchy into [UiHierarchy].
+  Future<UiHierarchy> dumpWindowHierarchy() async {
+    final xml = await dumpWindow();
+    return UiHierarchy.fromXmlString(xml);
   }
 
   /// Clicks the first node matching [text].

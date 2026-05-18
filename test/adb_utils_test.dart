@@ -132,4 +132,29 @@ void main() {
       expect(info.toString(), contains('1.2.3'));
     });
   });
+
+  group('security validations', () {
+    final device = AdbDevice(serial: 'fake', client: AdbClient());
+
+    test('uninstall rejects invalid package name', () async {
+      await expectLater(
+        device.uninstall(packageName: 'com.example.app;reboot'),
+        throwsA(isA<AdbError>()),
+      );
+    });
+
+    test('appInfo rejects invalid package name', () async {
+      await expectLater(
+        device.appInfo('bad package'),
+        throwsA(isA<AdbError>()),
+      );
+    });
+
+    test('openBrowser rejects malformed URL', () async {
+      expect(
+        () => device.openBrowser('example.com/no-scheme'),
+        throwsA(isA<AdbError>()),
+      );
+    });
+  });
 }

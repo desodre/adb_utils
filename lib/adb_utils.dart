@@ -21,3 +21,4 @@ export 'src/models/device_info.dart';
 export 'src/models/forward_item.dart';
 export 'src/models/network_type.dart';
 export 'src/models/shell_result.dart';
+export 'src/models/ui_hierarchy.dart';

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:adb_utils/src/adb_client.dart';
 import 'package:adb_utils/src/adb_device.dart';
+import 'package:adb_utils/src/models/ui_hierarchy.dart';
 import 'package:adb_utils/src/adb_sync.dart';
 import 'package:adb_utils/src/phantom/phantom_client.dart';
 import 'package:test/test.dart';
@@ -77,6 +78,19 @@ _startJsonServer(String response, {bool chunked = false}) async {
 }
 
 void main() {
+  group('PhantomClient constructor', () {
+    test('rejects invalid TCP port', () {
+      expect(
+        () => PhantomClient(device: _FakeAdbDevice(), port: 0),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => PhantomClient(device: _FakeAdbDevice(), port: 70000),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+  });
+
   group('PhantomClient.startAgent', () {
     test('pushes APKs, installs, starts agent and forwards port', () async {
       final fakeDevice = _FakeAdbDevice();
@@ -107,7 +121,7 @@ void main() {
   group('PhantomClient socket communication', () {
     test('dumpWindow returns xml when status is success', () async {
       final serverData = await _startJsonServer(
-        '{"status":"success","xml":"<hierarchy/>"}',
+        '{"status":"success","xml":"<hierarchy rotation=\\"1\\"/>"}',
         chunked: true,
       );
       final fakeDevice = _FakeAdbDevice();
@@ -119,7 +133,31 @@ void main() {
       final xml = await client.dumpWindow();
       final request = await serverData.request;
 
-      expect(xml, equals('<hierarchy/>'));
+      expect(xml, equals('<hierarchy rotation="1"/>'));
+      expect(request, equals({'action': 'dumpWindow'}));
+    });
+
+    test('dumpWindowHierarchy parses xml into UiHierarchy', () async {
+      final serverData = await _startJsonServer(
+        '{"status":"success","xml":"<hierarchy rotation=\\"2\\"><node index=\\"0\\" text=\\"Entrar\\" resource-id=\\"\\" class=\\"android.widget.Button\\" package=\\"com.example\\" content-desc=\\"\\" checkable=\\"false\\" checked=\\"false\\" clickable=\\"true\\" enabled=\\"true\\" focusable=\\"true\\" focused=\\"false\\" scrollable=\\"false\\" long-clickable=\\"false\\" password=\\"false\\" selected=\\"false\\" visible-to-user=\\"true\\" bounds=\\"[10,20][110,120]\\" drawing-order=\\"0\\" hint=\\"\\" display-id=\\"0\\"/></hierarchy>"}',
+      );
+      final fakeDevice = _FakeAdbDevice();
+      final client = PhantomClient(
+        device: fakeDevice,
+        port: serverData.server.port,
+      );
+
+      final hierarchy = await client.dumpWindowHierarchy();
+      final request = await serverData.request;
+
+      expect(hierarchy, isA<UiHierarchy>());
+      expect(hierarchy.rotation, equals(2));
+      expect(hierarchy.nodes, hasLength(1));
+      expect(hierarchy.nodes.first.text, equals('Entrar'));
+      expect(
+        hierarchy.nodes.first.bounds.center,
+        equals({'x': 60.0, 'y': 70.0}),
+      );
       expect(request, equals({'action': 'dumpWindow'}));
     });
 

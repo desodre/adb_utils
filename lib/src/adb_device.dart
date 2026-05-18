@@ -37,6 +37,9 @@ class DeviceProperties {
 /// Obtain via [AdbClient.device].
 class AdbDevice {
   AdbDevice({required this.serial, required this.client});
+  static final RegExp _packageNamePattern = RegExp(
+    r'^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)+$',
+  );
 
   final String serial;
   final AdbClient client;
@@ -153,6 +156,7 @@ class AdbDevice {
   ///
   /// Throws [AdbError] if the package is not installed on the device.
   Future<AppInfo> appInfo(String packageName) async {
+    _validatePackageName(packageName);
     final out = await shell('dumpsys package $packageName');
     return AppInfo.fromDumpsys(packageName, out);
   }
@@ -261,8 +265,10 @@ class AdbDevice {
   Future<void> root() => shell('root:');
   Future<void> tcpip(int port) => shell('tcpip:$port');
 
-  Future<void> openBrowser(String url) =>
-      shell('am start -a android.intent.action.VIEW -d "$url"');
+  Future<void> openBrowser(String url) => shell(
+    "am start -a android.intent.action.VIEW -d "
+    "'${_sanitizeUrlForShell(url)}'",
+  );
 
   Future<void> volumeUp({int times = 1}) async {
     for (var i = 0; i < times; i++) {
@@ -319,8 +325,23 @@ class AdbDevice {
 
   /// Uninstalls a package, equivalent to `adb uninstall <packageName>`.
   Future<String> uninstall({required String packageName}) async {
+    _validatePackageName(packageName);
     final result = await shell('pm uninstall $packageName');
     return result.trim();
+  }
+
+  void _validatePackageName(String packageName) {
+    if (!_packageNamePattern.hasMatch(packageName)) {
+      throw AdbError('Invalid package name: $packageName');
+    }
+  }
+
+  String _sanitizeUrlForShell(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || url.contains(RegExp(r'[\r\n]'))) {
+      throw AdbError('Invalid URL: $url');
+    }
+    return url.replaceAll("'", r"'\''");
   }
 
   @override

@@ -1,3 +1,16 @@
+## 0.3.1
+
+- **feat(ui_hierarchy)**: added typed UI hierarchy model and package export.
+  - Added `UiHierarchy`, `UiNode`, and `Bounds` in `lib/src/models/ui_hierarchy.dart`.
+  - Exported `ui_hierarchy.dart` from the main barrel (`adb_utils.dart`).
+- **feat(phantom)**: added `dumpWindowHierarchy()` to parse XML directly into `UiHierarchy`.
+- **security**: hardened shell/socket surfaces.
+  - Added package-name validation in `appInfo()` and `uninstall()`.
+  - Added URL validation/sanitization in `openBrowser()`.
+  - Added Phantom socket connect/response timeouts, response size cap, empty-response check, and strict port-range validation.
+- **test**: added security-focused tests and hierarchy parsing coverage.
+- **docs**: updated README with Phantom + `UiHierarchy` usage.
+
 ## 0.3.0
 
 - **feat(phantom)**: added `PhantomClient` to orchestrate UiAutomator agent lifecycle and TCP communication.
