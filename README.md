@@ -19,6 +19,8 @@ Esta biblioteca se comunica diretamente com o servidor ADB local via TCP (`127.0
 - **Socket & Forwarding**: Criar port forwards locais/reversos e até obter conexões Socket raw nativas para serviços dentro do dispositivo Android.
 - **SYNC Nativo (Transferência de Arquivos)**: Enviar (`push`), ler (`readBytes`, `readText`) e consultar (`stat`) arquivos diretamente usando o protocolo ADB SYNC.
 - **Phantom (UiAutomator Agent)**: Orquestrar instalação/start do agente de teste instrumentado e enviar ações JSON via TCP (`dumpWindow`, `clickByText`).
+- **Phantom Video Stream (H.264)**: Consumir stream bruto de vídeo (NAL units) via `startVideoStream()` na porta `9009`.
+- **Relatório HTML de Testes**: Gerar `report.html` automaticamente após `dart test`, com evidências detalhadas de falha.
 
 ---
 
@@ -35,7 +37,7 @@ Adicione o pacote `adb_utils` ao seu arquivo `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.3.2
+  adb_utils: ^0.4.0
 ```
 
 E instale rodando:
@@ -205,6 +207,54 @@ print('clickByText => $clicked');
 `startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp`, instalação (`pm install -t -r`), `force-stop` do agente antigo, start do instrumented test em background (`nohup ... &`) e `adb forward tcp:<port>`.
 
 `startVideoStream` cria automaticamente o `adb forward tcp:9009 -> tcp:9009` e retorna um `Stream<List<int>>` contínuo com o vídeo H.264 bruto (NAL units).
+
+---
+
+## Relatório HTML automático após `dart test`
+
+Ao executar:
+
+```sh
+dart test
+```
+
+o projeto gera automaticamente um ficheiro `report.html` na raiz com:
+
+- painel de resumo (Total, Passaram, Falharam, Tempo Total);
+- tabela com todos os testes executados;
+- evidências de falha destacadas com fundo vermelho escuro, bloco monoespaçado (`<pre><code>`) e scroll horizontal para leitura de mensagens longas.
+
+### APIs de reporting disponíveis
+
+As APIs de reporting também estão exportadas no barrel principal:
+
+```dart
+import 'package:adb_utils/adb_utils.dart';
+
+final result = TestResult(
+  nome: 'Conectar via Socket',
+  categoria: 'Conectividade',
+  duracao: const Duration(milliseconds: 120),
+  passou: true,
+);
+
+final reporter = HtmlReporter(outputPath: 'report.html');
+await reporter.writeReport([result]);
+```
+
+### Wrapper de execução sequencial (`TestRunner`)
+
+Para cenários customizados fora do `package:test`, use:
+
+```dart
+final runner = TestRunner();
+await runner.runTest('Nome', 'Categoria', () async {
+  // lógica assíncrona do teste
+});
+await HtmlReporter(outputPath: 'report.html').writeReport(runner.resultados);
+```
+
+> Nota: arquivos temporários de agregação do relatório são escritos em `logs/test-report/`.
 
 ---
 
