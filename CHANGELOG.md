@@ -1,3 +1,10 @@
+## 0.4.1
+
+- **hotfix(reporting)**: fixed automatic HTML report generation in `dart test`.
+  - Renamed test helper from `test/helpers/reporting_test.dart` to `test/helpers/reporting.dart` so it is no longer discovered as a standalone test file.
+  - Fixed concurrent JSONL append writes by forcing file-end position before writing under lock.
+  - Hardened report/session JSON parsing to ignore malformed residual lines instead of failing in `tearDownAll`.
+
 ## 0.4.0
 
 - **feat(phantom)**: added `PhantomClient.startVideoStream()` for raw H.264 streaming.
