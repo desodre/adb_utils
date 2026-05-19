@@ -22,3 +22,6 @@ export 'src/models/forward_item.dart';
 export 'src/models/network_type.dart';
 export 'src/models/shell_result.dart';
 export 'src/models/ui_hierarchy.dart';
+export 'src/reporting/html_reporter.dart';
+export 'src/reporting/test_result.dart';
+export 'src/reporting/test_runner.dart';

@@ -2,7 +2,7 @@
 library;
 
 import 'package:adb_utils/adb_utils.dart';
-import 'package:test/test.dart';
+import '../helpers/reporting_test.dart';
 
 import '../helpers/adb_test_helpers.dart';
 
@@ -15,6 +15,8 @@ import '../helpers/adb_test_helpers.dart';
 ///   dart test test/integration/server_test.dart
 ///   dart test --tags integration
 void main() {
+  configureHtmlReporting(suiteName: 'integration/server_test.dart');
+
   late AdbClient adb;
 
   setUpAll(() async {

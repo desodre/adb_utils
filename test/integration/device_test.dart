@@ -4,7 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:adb_utils/adb_utils.dart';
-import 'package:test/test.dart';
+import '../helpers/reporting_test.dart';
 
 import '../helpers/adb_test_helpers.dart';
 
@@ -16,6 +16,8 @@ import '../helpers/adb_test_helpers.dart';
 ///
 /// All tests are skipped automatically when no device is available.
 void main() {
+  configureHtmlReporting(suiteName: 'integration/device_test.dart');
+
   late AdbClient adb;
   late AdbDevice d;
 

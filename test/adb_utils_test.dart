@@ -1,5 +1,5 @@
 import 'package:adb_utils/adb_utils.dart';
-import 'package:test/test.dart';
+import 'helpers/reporting_test.dart';
 
 // Realistic dumpsys output (trimmed) for a user-installed package.
 const _dumpsysUserApp = '''
@@ -27,6 +27,8 @@ Package [com.bare.app] (000000):
 ''';
 
 void main() {
+  configureHtmlReporting(suiteName: 'unit/adb_utils_test.dart');
+
   group('DeviceState', () {
     test('parses known states', () {
       expect(DeviceState.parse('device'), DeviceState.device);
