@@ -1,3 +1,10 @@
+## 0.4.3
+- **feat(phantom)**: embedded Phantom APK binaries in Dart source via Base64, removing runtime dependency on local APK file paths.
+- **feat(phantom)**: refactored `PhantomClient.startAgent()` to install from embedded binaries using safe temporary files created at runtime.
+- **feat(phantom)**: added `AdbDevice.phantom` extension for ergonomic usage (`await device.phantom.startAgent();`).
+- **build(tooling)**: added `tool/generate_base64_apks.dart` to regenerate `lib/src/phantom/phantom_binaries.dart`.
+- **docs**: updated README/docs/examples to the new no-path Phantom startup flow.
+
 ## 0.4.2
 - **docs**: updated documentation to reflect the latest changes in release 0.4.2.
 - **ex**: also add examples.

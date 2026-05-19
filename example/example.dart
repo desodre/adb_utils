@@ -29,11 +29,8 @@ Future<void> main() async {
     print('Using device: ${selected.serial} (${selected.model ?? 'unknown'})');
 
     print('[3/5] Starting Phantom agent...');
-    final phantom = PhantomClient(device: device, port: 9008);
-    await phantom.startAgent(
-      'lib/src/phantom/apks/target.apk',
-      'lib/src/phantom/apks/agent.apk',
-    );
+    final phantom = device.phantom;
+    await phantom.startAgent();
     print('Phantom agent started and port forwarding is ready.');
 
     print('[4/5] Dumping UI hierarchy...');

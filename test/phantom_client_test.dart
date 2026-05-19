@@ -110,15 +110,27 @@ void main() {
       final fakeDevice = _FakeAdbDevice();
       final client = PhantomClient(device: fakeDevice, port: 9008);
 
-      await client.startAgent('/tmp/target-local.apk', '/tmp/agent-local.apk');
+      await client.startAgent();
 
+      expect(fakeDevice.fakeSync.pushes, hasLength(2));
       expect(
-        fakeDevice.fakeSync.pushes,
-        equals([
-          ('/tmp/target-local.apk', '/data/local/tmp/target.apk'),
-          ('/tmp/agent-local.apk', '/data/local/tmp/agent.apk'),
-        ]),
+        fakeDevice.fakeSync.pushes[0].$1,
+        isA<String>().having(
+          (p) => p,
+          'path',
+          matches(RegExp(r'[\\/]{1}target_temp\.apk$')),
+        ),
       );
+      expect(fakeDevice.fakeSync.pushes[0].$2, '/data/local/tmp/target.apk');
+      expect(
+        fakeDevice.fakeSync.pushes[1].$1,
+        isA<String>().having(
+          (p) => p,
+          'path',
+          matches(RegExp(r'[\\/]{1}agent_temp\.apk$')),
+        ),
+      );
+      expect(fakeDevice.fakeSync.pushes[1].$2, '/data/local/tmp/agent.apk');
       expect(
         fakeDevice.shellCommands,
         equals([

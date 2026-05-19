@@ -55,25 +55,20 @@ await target.forwardRemove('tcp:9008');
 await target.forwardRemove('tcp:9009');
 ```
 
-## Phantom Agent Paths (Custom APKs)
+## Phantom Agent Configuration
 
-O `PhantomClient.startAgent()` recebe caminhos locais dos APKs:
+`startAgent()` já utiliza APKs embutidos em Base64 no próprio package.
+Não é necessário informar caminhos de ficheiros:
 
 ```dart
-final phantom = PhantomClient(device: target, port: 9008);
-await phantom.startAgent(
-  'build/phantom/target.apk',
-  'build/phantom/agent.apk',
-);
+final phantom = target.phantom;
+await phantom.startAgent();
 ```
 
-Também pode usar os APKs distribuídos no package:
+Quando precisar atualizar os binários embutidos, gere novamente:
 
-```dart
-await phantom.startAgent(
-  'lib/src/phantom/apks/target.apk',
-  'lib/src/phantom/apks/agent.apk',
-);
+```bash
+dart run tool/generate_base64_apks.dart
 ```
 
 ## Timeouts and Failure Behavior
@@ -90,4 +85,3 @@ Isto evita hangs silenciosos e respostas corrompidas em produção.
 
 - Arquitetura do fluxo Phantom: [../architecture/overview.md](../architecture/overview.md)
 - Protocolo JSON e stream H.264: [../architecture/protocols.md](../architecture/protocols.md)
-

@@ -177,17 +177,12 @@ Para automações de UI via agente instrumentado:
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';
-import 'package:adb_utils/src/phantom/phantom_client.dart';
 
 final adb = AdbClient();
 final d = await adb.device();
 
-final phantom = PhantomClient(device: d, port: 9008);
-
-await phantom.startAgent(
-  'lib/src/phantom/apks/target.apk',
-  'lib/src/phantom/apks/agent.apk',
-);
+final phantom = d.phantom;
+await phantom.startAgent();
 
 final xml = await phantom.dumpWindow();
 final hierarchy = await phantom.dumpWindowHierarchy();

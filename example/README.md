@@ -18,13 +18,10 @@ dart run example/example.dart
 
 - ADB instalado e ativo (`adb start-server`)
 - Pelo menos um dispositivo conectado (`adb devices -l`)
-- APKs do Phantom presentes em:
-  - `lib/src/phantom/apks/target.apk`
-  - `lib/src/phantom/apks/agent.apk`
+- Os APKs do Phantom já estão embutidos em Base64 pela própria biblioteca.
 
 ## Related Docs
 
 - Setup: [../doc/setup/getting_started.md](../doc/setup/getting_started.md)
 - Configuration: [../doc/setup/configuration.md](../doc/setup/configuration.md)
 - Protocols: [../doc/architecture/protocols.md](../doc/architecture/protocols.md)
-

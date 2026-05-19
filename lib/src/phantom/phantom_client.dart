@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../adb_device.dart';
 import '../models/ui_hierarchy.dart';
+import 'phantom_binaries.dart';
 
 /// Client responsible for installing and communicating with the Phantom
 /// UiAutomator agent running on an Android device.
@@ -28,27 +29,46 @@ class PhantomClient {
   /// TCP port exposed by the Phantom agent.
   final int port;
 
-  /// Pushes APKs, installs them, starts the instrumentation agent and
+  /// Pushes embedded APKs, installs them, starts the instrumentation agent and
   /// configures TCP forwarding for local communication.
-  Future<void> startAgent(String targetApkPath, String agentApkPath) async {
+  Future<void> startAgent() async {
     const targetRemotePath = '/data/local/tmp/target.apk';
     const agentRemotePath = '/data/local/tmp/agent.apk';
-
-    await device.sync.push(targetApkPath, targetRemotePath);
-    await device.sync.push(agentApkPath, agentRemotePath);
-
-    await device.shell('pm install -t -r $targetRemotePath');
-    await device.shell('pm install -t -r $agentRemotePath');
-
-    await device.shell('am force-stop com.example.phantom_agent');
-    await device.shell(
-      'nohup am instrument -w '
-      'com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner '
-      '> /dev/null 2>&1 &',
+    final tempDir = await Directory.systemTemp.createTemp('adb_utils_phantom_');
+    final targetTempFile = File(
+      '${tempDir.path}${Platform.pathSeparator}target_temp.apk',
+    );
+    final agentTempFile = File(
+      '${tempDir.path}${Platform.pathSeparator}agent_temp.apk',
     );
 
-    await Future.delayed(const Duration(seconds: 2));
-    await device.forward('tcp:$port', 'tcp:$port');
+    await targetTempFile.writeAsBytes(
+      base64Decode(targetApkBase64),
+      flush: true,
+    );
+    await agentTempFile.writeAsBytes(base64Decode(agentApkBase64), flush: true);
+
+    try {
+      await device.sync.push(targetTempFile.path, targetRemotePath);
+      await device.sync.push(agentTempFile.path, agentRemotePath);
+
+      await device.shell('pm install -t -r $targetRemotePath');
+      await device.shell('pm install -t -r $agentRemotePath');
+
+      await device.shell('am force-stop com.example.phantom_agent');
+      await device.shell(
+        'nohup am instrument -w '
+        'com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner '
+        '> /dev/null 2>&1 &',
+      );
+
+      await Future.delayed(const Duration(seconds: 2));
+      await device.forward('tcp:$port', 'tcp:$port');
+    } finally {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    }
   }
 
   /// Starts the Phantom raw video stream over TCP.
@@ -130,4 +150,8 @@ class PhantomClient {
     });
     return response['status'] == 'success';
   }
+}
+
+extension PhantomAdbDeviceExtension on AdbDevice {
+  PhantomClient get phantom => PhantomClient(device: this);
 }

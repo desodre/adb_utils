@@ -11,12 +11,8 @@ import 'package:adb_utils/adb_utils.dart';
 Future<void> main() async {
   final adb = AdbClient();
   final device = await adb.device();
-  final phantom = PhantomClient(device: device, port: 9008);
-
-  await phantom.startAgent(
-    'lib/src/phantom/apks/target.apk',
-    'lib/src/phantom/apks/agent.apk',
-  );
+  final phantom = device.phantom;
+  await phantom.startAgent();
 
   final stream = await phantom.startVideoStream();
   final sub = stream.listen(
@@ -90,4 +86,3 @@ Future<void> main() async {
 
 - Troubleshooting: [troubleshooting.md](troubleshooting.md)
 - Protocol internals: [../architecture/protocols.md](../architecture/protocols.md)
-

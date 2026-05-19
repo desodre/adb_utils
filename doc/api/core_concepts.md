@@ -61,7 +61,7 @@ Principais capacidades:
 
 Principais capacidades:
 
-- `startAgent(targetApkPath, agentApkPath)`
+- `startAgent()`
 - `dumpWindow()`
 - `dumpWindowHierarchy()`
 - `clickByText(text)`
@@ -70,11 +70,8 @@ Principais capacidades:
 Exemplo:
 
 ```dart
-final phantom = PhantomClient(device: d, port: 9008);
-await phantom.startAgent(
-  'lib/src/phantom/apks/target.apk',
-  'lib/src/phantom/apks/agent.apk',
-);
+final phantom = d.phantom;
+await phantom.startAgent();
 final ok = await phantom.clickByText('Entrar');
 print(ok);
 ```
@@ -106,4 +103,3 @@ final runner = TestRunner();
 await runner.runTest('Smoke', 'ci', () async {});
 await HtmlReporter(outputPath: 'report.html').writeReport(runner.resultados);
 ```
-
