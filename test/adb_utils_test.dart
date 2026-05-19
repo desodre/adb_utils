@@ -1,5 +1,5 @@
 import 'package:adb_utils/adb_utils.dart';
-import 'helpers/reporting_test.dart';
+import 'helpers/reporting.dart';
 
 // Realistic dumpsys output (trimmed) for a user-installed package.
 const _dumpsysUserApp = '''

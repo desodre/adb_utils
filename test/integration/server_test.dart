@@ -2,7 +2,7 @@
 library;
 
 import 'package:adb_utils/adb_utils.dart';
-import '../helpers/reporting_test.dart';
+import '../helpers/reporting.dart';
 
 import '../helpers/adb_test_helpers.dart';
 

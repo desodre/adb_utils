@@ -7,7 +7,7 @@ import 'package:adb_utils/src/adb_device.dart';
 import 'package:adb_utils/src/models/ui_hierarchy.dart';
 import 'package:adb_utils/src/adb_sync.dart';
 import 'package:adb_utils/src/phantom/phantom_client.dart';
-import 'helpers/reporting_test.dart';
+import 'helpers/reporting.dart';
 
 class _FakeAdbSync extends AdbSync {
   _FakeAdbSync(super.device);

@@ -100,9 +100,20 @@ Future<void> _initSessionIfNeeded() async {
     final sessionFile = File(_sessionPath);
     int? sessionPid;
     if (await sessionFile.exists()) {
-      final raw = await sessionFile.readAsString();
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      sessionPid = decoded['pid'] as int?;
+      final raw = (await sessionFile.readAsString()).trim();
+      if (raw.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic>) {
+            final pidValue = decoded['pid'];
+            if (pidValue is int) {
+              sessionPid = pidValue;
+            }
+          }
+        } on FormatException {
+          sessionPid = null;
+        }
+      }
     }
 
     if (sessionPid != pid) {
@@ -141,6 +152,7 @@ Future<void> _appendResult(_ReportRecord record) async {
   final raf = await file.open(mode: FileMode.append);
   try {
     await raf.lock(FileLock.exclusive);
+    await raf.setPosition(await raf.length());
     await raf.writeString('${jsonEncode(record.toJson())}\n');
   } finally {
     await raf.unlock();
@@ -161,13 +173,35 @@ Future<void> _generateHtmlReport() async {
     if (line.trim().isEmpty) {
       continue;
     }
-    final row = jsonDecode(line) as Map<String, dynamic>;
+
+    Map<String, dynamic> row;
+    try {
+      final decoded = jsonDecode(line);
+      if (decoded is! Map<String, dynamic>) {
+        continue;
+      }
+      row = decoded;
+    } on FormatException {
+      continue;
+    }
+
+    final nome = row['nome'];
+    final categoria = row['categoria'];
+    final duracaoMs = row['duracaoMs'];
+    final passou = row['passou'];
+    if (nome is! String ||
+        categoria is! String ||
+        duracaoMs is! int ||
+        passou is! bool) {
+      continue;
+    }
+
     results.add(
       TestResult(
-        nome: row['nome'] as String,
-        categoria: row['categoria'] as String,
-        duracao: Duration(milliseconds: row['duracaoMs'] as int),
-        passou: row['passou'] as bool,
+        nome: nome,
+        categoria: categoria,
+        duracao: Duration(milliseconds: duracaoMs),
+        passou: passou,
         mensagemErro: row['mensagemErro'] as String?,
         stackTrace: row['stackTrace'] as String?,
       ),
