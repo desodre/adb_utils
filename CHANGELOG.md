@@ -1,3 +1,24 @@
+## 0.4.0
+
+- **feat(phantom)**: added `PhantomClient.startVideoStream()` for raw H.264 streaming.
+  - Automatically configures `adb forward tcp:9009 -> tcp:9009`.
+  - Opens a native `Socket` on `127.0.0.1:9009` and returns it as `Stream<List<int>>`.
+  - Added API docs clarifying the stream contains raw H.264 NAL units.
+- **feat(reporting)**: added automated HTML test reporting utilities.
+  - Added `TestResult` model (`lib/src/reporting/test_result.dart`).
+  - Added `HtmlReporter` (`lib/src/reporting/html_reporter.dart`) with summary cards and failure evidence blocks (`mensagemErro` + `stackTrace` in `<pre><code>`).
+  - Added sequential test wrapper `TestRunner` (`lib/src/reporting/test_runner.dart`).
+  - Exported reporting APIs in `lib/adb_utils.dart`.
+  - Added demo runner at `bin/test_runner.dart` that writes `report.html`.
+- **test(reporting)**: `dart test` now generates `report.html` automatically.
+  - Added `test/helpers/reporting_test.dart` to capture per-test results and failures.
+  - Integrated reporting helper in unit and integration suites:
+    - `test/adb_utils_test.dart`
+    - `test/phantom_client_test.dart`
+    - `test/integration/server_test.dart`
+    - `test/integration/device_test.dart`
+- **test(phantom)**: added coverage for `startVideoStream()` forwarding and byte streaming behavior.
+
 ## 0.3.2
 
 - chore: apply `dart format` across project files required by CI/release workflow.
