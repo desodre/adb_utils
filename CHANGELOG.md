@@ -1,3 +1,9 @@
+## 0.4.2
+- **docs**: updated documentation to reflect the latest changes in release 0.4.2.
+- **ex**: also add examples.
+
+
+
 ## 0.4.1
 
 - **hotfix(reporting)**: fixed automatic HTML report generation in `dart test`.
