@@ -51,6 +51,17 @@ class PhantomClient {
     await device.forward('tcp:$port', 'tcp:$port');
   }
 
+  /// Starts the Phantom raw video stream over TCP.
+  ///
+  /// The returned stream is a continuous byte stream where each chunk contains
+  /// raw H.264 data (NAL units) produced by the Android agent. Consumers are
+  /// expected to parse/decode those NAL units according to their media pipeline.
+  Future<Stream<List<int>>> startVideoStream() async {
+    await device.forward('tcp:9009', 'tcp:9009');
+    final socket = await Socket.connect('127.0.0.1', 9009);
+    return socket;
+  }
+
   /// Sends a JSON payload to the Phantom agent and returns the decoded
   /// JSON response.
   Future<Map<String, dynamic>> _sendJsonPayload(

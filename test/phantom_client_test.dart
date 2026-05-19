@@ -77,6 +77,18 @@ _startJsonServer(String response, {bool chunked = false}) async {
   return (server: server, request: requestCompleter.future);
 }
 
+Future<ServerSocket> _startVideoServer(List<int> payload) async {
+  final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 9009);
+  unawaited(() async {
+    final client = await server.first;
+    client.add(payload);
+    await client.flush();
+    await client.close();
+    await server.close();
+  }());
+  return server;
+}
+
 void main() {
   group('PhantomClient constructor', () {
     test('rejects invalid TCP port', () {
@@ -119,6 +131,23 @@ void main() {
   });
 
   group('PhantomClient socket communication', () {
+    test(
+      'startVideoStream forwards 9009 and returns raw H.264 byte stream',
+      () async {
+        final server = await _startVideoServer([0, 0, 0, 1, 103, 66, 0, 30]);
+        final fakeDevice = _FakeAdbDevice();
+        final client = PhantomClient(device: fakeDevice);
+
+        final stream = await client.startVideoStream();
+        final socket = stream as Socket;
+        final bytes = await socket.expand((chunk) => chunk).toList();
+
+        expect(server.port, equals(9009));
+        expect(fakeDevice.forwardCalls, equals([('tcp:9009', 'tcp:9009')]));
+        expect(bytes, equals([0, 0, 0, 1, 103, 66, 0, 30]));
+      },
+    );
+
     test('dumpWindow returns xml when status is success', () async {
       final serverData = await _startJsonServer(
         '{"status":"success","xml":"<hierarchy rotation=\\"1\\"/>"}',

@@ -190,6 +190,12 @@ await phantom.startAgent(
 final xml = await phantom.dumpWindow();
 final hierarchy = await phantom.dumpWindowHierarchy();
 final clicked = await phantom.clickByText('Entrar');
+final videoStream = await phantom.startVideoStream();
+
+await for (final nalChunk in videoStream) {
+  // `nalChunk` contém bytes H.264 brutos (NAL units).
+  // Encaminhe para o seu decoder/player.
+}
 
 print(xml);
 print('rotation => ${hierarchy.rotation}');
@@ -197,6 +203,8 @@ print('clickByText => $clicked');
 ```
 
 `startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp`, instalação (`pm install -t -r`), `force-stop` do agente antigo, start do instrumented test em background (`nohup ... &`) e `adb forward tcp:<port>`.
+
+`startVideoStream` cria automaticamente o `adb forward tcp:9009 -> tcp:9009` e retorna um `Stream<List<int>>` contínuo com o vídeo H.264 bruto (NAL units).
 
 ---
 
