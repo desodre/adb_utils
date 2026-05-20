@@ -29,6 +29,7 @@ class _FakeAdbDevice extends AdbDevice {
   final shellCommands = <String>[];
   final forwardCalls = <(String, String)>[];
   final shellResponses = <String, String>{};
+  final shellResponseQueue = <String, List<String>>{};
   final _forwardServers = <ServerSocket>[];
   late final _FakeAdbSync fakeSync = _FakeAdbSync(this);
 
@@ -43,6 +44,10 @@ class _FakeAdbDevice extends AdbDevice {
   }) async {
     final cmd = command is List ? command.join(' ') : command as String;
     shellCommands.add(cmd);
+    final queued = shellResponseQueue[cmd];
+    if (queued != null && queued.isNotEmpty) {
+      return queued.removeAt(0);
+    }
     return shellResponses[cmd] ?? '';
   }
 
@@ -144,8 +149,9 @@ void main() {
   group('PhantomClient.startAgent', () {
     test('pushes APKs, installs, starts agent and forwards port', () async {
       final fakeDevice = _FakeAdbDevice();
-      fakeDevice.shellResponses['logcat -v raw -d -s PhantomServer:I'] =
-          'COMMAND_PORT_ALLOCATED: 41111\nVIDEO_PORT_ALLOCATED: 42222\n';
+      fakeDevice
+              .shellResponses['run-as com.example.phantom_agent cat files/phantom_ports.json'] =
+          '{"command_port":41111,"video_port":42222}';
       final client = PhantomClient(device: fakeDevice, port: 9008);
 
       await client.startAgent();
@@ -176,9 +182,10 @@ void main() {
           'pm install -t -r /data/local/tmp/target.apk',
           'pm install -t -r /data/local/tmp/agent.apk',
           'am force-stop com.example.phantom_agent',
-          'logcat -c',
-          'nohup am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner > /dev/null 2>&1 &',
-          'logcat -v raw -d -s PhantomServer:I',
+          'run-as com.example.phantom_agent rm -f files/phantom_ports.json',
+          'am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner',
+          'run-as com.example.phantom_agent cat files/phantom_ports.json',
+          'run-as com.example.phantom_agent rm -f files/phantom_ports.json',
         ]),
       );
       expect(fakeDevice.forwardCalls, hasLength(2));
@@ -191,8 +198,9 @@ void main() {
       fakeDevice
               .shellResponses['pm list packages | grep com.example.phantom_agent'] =
           'package:com.example.phantom_agent\npackage:com.example.phantom_agent.test\n';
-      fakeDevice.shellResponses['logcat -v raw -d -s PhantomServer:I'] =
-          'COMMAND_PORT_ALLOCATED: 43333\nVIDEO_PORT_ALLOCATED: 44444\n';
+      fakeDevice
+              .shellResponses['run-as com.example.phantom_agent cat files/phantom_ports.json'] =
+          '{"command_port":43333,"video_port":44444}';
       final client = PhantomClient(device: fakeDevice, port: 9008);
 
       await client.startAgent();
@@ -203,14 +211,41 @@ void main() {
         equals([
           'pm list packages | grep com.example.phantom_agent',
           'am force-stop com.example.phantom_agent',
-          'logcat -c',
-          'nohup am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner > /dev/null 2>&1 &',
-          'logcat -v raw -d -s PhantomServer:I',
+          'run-as com.example.phantom_agent rm -f files/phantom_ports.json',
+          'am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner',
+          'run-as com.example.phantom_agent cat files/phantom_ports.json',
+          'run-as com.example.phantom_agent rm -f files/phantom_ports.json',
         ]),
       );
       expect(fakeDevice.forwardCalls, hasLength(2));
       expect(fakeDevice.forwardCalls[0].$2, equals('tcp:43333'));
       expect(fakeDevice.forwardCalls[1].$2, equals('tcp:44444'));
+    });
+
+    test('retries ports file parsing when JSON is partially written', () async {
+      final fakeDevice = _FakeAdbDevice();
+      fakeDevice
+          .shellResponseQueue['run-as com.example.phantom_agent cat files/phantom_ports.json'] = [
+        '{"command_port":45555',
+        '{"command_port":45555,"video_port":46666}',
+      ];
+      final client = PhantomClient(device: fakeDevice, port: 9008);
+
+      await client.startAgent();
+
+      expect(
+        fakeDevice.shellCommands
+            .where(
+              (c) =>
+                  c ==
+                  'run-as com.example.phantom_agent cat files/phantom_ports.json',
+            )
+            .length,
+        equals(2),
+      );
+      expect(fakeDevice.forwardCalls, hasLength(2));
+      expect(fakeDevice.forwardCalls[0].$2, equals('tcp:45555'));
+      expect(fakeDevice.forwardCalls[1].$2, equals('tcp:46666'));
     });
   });
 

@@ -36,12 +36,11 @@ class PhantomClient {
   static const int _maxResponseBytes = 1024 * 1024;
   static const String _agentPackage = 'com.example.phantom_agent';
   static const String _agentTestPackage = 'com.example.phantom_agent.test';
+  static const String _portsFilePath = 'files/phantom_ports.json';
   static const String _commandPortKey = 'commandPort';
   static const String _videoPortKey = 'videoPort';
-  static final RegExp _commandPortRegex = RegExp(
-    r'COMMAND_PORT_ALLOCATED: (\d+)',
-  );
-  static final RegExp _videoPortRegex = RegExp(r'VIDEO_PORT_ALLOCATED: (\d+)');
+  static const String _commandPortJsonKey = 'command_port';
+  static const String _videoPortJsonKey = 'video_port';
 
   /// Target device used for all ADB operations.
   final AdbDevice device;
@@ -107,14 +106,22 @@ class PhantomClient {
     }
 
     await device.shell('am force-stop $_agentPackage');
-    await device.shell('logcat -c');
-    await device.shell(
-      'nohup am instrument -w -e class $packageName.PhantomServer#startServer '
-      '$packageName.test/$testRunner > /dev/null 2>&1 &',
-    );
+    await device.shell('run-as $_agentPackage rm -f $_portsFilePath');
+    final instrumentationCommand =
+        'am instrument -w -e class $packageName.PhantomServer#startServer '
+        '$packageName.test/$testRunner';
+    unawaited(() async {
+      try {
+        await device.shell(instrumentationCommand);
+        _logger.fine('Instrumentation process finished');
+      } catch (e, st) {
+        _logger.warning('Instrumentation process failed', e, st);
+      }
+    }());
     _logger.fine('Instrumentation process started');
 
-    final dynamicPorts = await _waitForDynamicPorts();
+    final dynamicPorts = await _readPortsFromFile();
+    await device.shell('run-as $_agentPackage rm -f $_portsFilePath');
     final deviceCommandPort = dynamicPorts[_commandPortKey]!;
     final deviceVideoPort = dynamicPorts[_videoPortKey]!;
     _logger.shout(
@@ -217,43 +224,62 @@ class PhantomClient {
         output.contains('package:$_agentTestPackage'));
   }
 
-  Future<Map<String, int>> _waitForDynamicPorts() async {
-    const attempts = 40;
-    const interval = Duration(milliseconds: 500);
-    var lastLogcatOutput = '';
+  Future<Map<String, int>> _readPortsFromFile() async {
+    const attempts = 20;
+    const interval = Duration(milliseconds: 300);
+    var lastFileOutput = '';
 
     for (var i = 0; i < attempts; i++) {
-      var res = await device.shell('logcat -v raw -d -s PhantomServer:I');
-      if (res.trim().isEmpty) {
-        res = await device.shell('logcat -v raw -d -s PhantomServer');
-      }
-      if (res.trim().isEmpty) {
-        res = await device.shell('logcat -d -s PhantomServer');
-      }
-      lastLogcatOutput = res;
+      final result = await device.shell(
+        'run-as $_agentPackage cat $_portsFilePath',
+      );
+      final trimmed = result.trim();
+      lastFileOutput = result;
 
-      final commandMatch = _commandPortRegex.firstMatch(res);
-      final videoMatch = _videoPortRegex.firstMatch(res);
-      if (commandMatch != null && videoMatch != null) {
-        return {
-          _commandPortKey: int.parse(commandMatch.group(1)!),
-          _videoPortKey: int.parse(videoMatch.group(1)!),
-        };
+      if (trimmed.isNotEmpty &&
+          !trimmed.contains('No such file or directory')) {
+        try {
+          final decoded = jsonDecode(trimmed);
+          if (decoded is Map<String, dynamic>) {
+            final commandPort = decoded[_commandPortJsonKey];
+            final videoPort = decoded[_videoPortJsonKey];
+            final parsedCommandPort = switch (commandPort) {
+              int value => value,
+              String value => int.tryParse(value),
+              _ => null,
+            };
+            final parsedVideoPort = switch (videoPort) {
+              int value => value,
+              String value => int.tryParse(value),
+              _ => null,
+            };
+            if (parsedCommandPort != null && parsedVideoPort != null) {
+              return {
+                _commandPortKey: parsedCommandPort,
+                _videoPortKey: parsedVideoPort,
+              };
+            }
+          }
+        } on FormatException {
+          _logger.warning(
+            'Handshake file not fully written yet; retrying JSON parse',
+          );
+        }
       }
 
       if (i < attempts - 1) {
-        _logger.warning('Dynamic port logcat scan retry (${i + 1}/$attempts)');
+        _logger.warning('Handshake file polling retry (${i + 1}/$attempts)');
         await Future<void>.delayed(interval);
       }
     }
 
     _logger.severe(
-      'Dynamic port discovery timed out after $attempts attempts. '
-      'Last logcat excerpt: ${truncateForLog(lastLogcatOutput)}',
+      'Handshake file polling timed out after $attempts attempts. '
+      'Last file content: ${truncateForLog(lastFileOutput)}',
     );
     throw TimeoutException(
-      'Could not read dynamic Phantom ports from logcat after $attempts '
-      'attempts. Last logcat output:\n$lastLogcatOutput',
+      'Could not read dynamic Phantom ports file after $attempts '
+      'attempts. Last file content:\n$lastFileOutput',
     );
   }
 
