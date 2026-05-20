@@ -1,3 +1,6 @@
+@Tags(['all_possible'])
+library;
+
 import 'package:adb_utils/adb_utils.dart';
 import 'helpers/reporting.dart';
 

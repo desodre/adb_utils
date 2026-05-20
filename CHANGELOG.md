@@ -1,3 +1,11 @@
+## 0.4.4
+- **feat(logging)**: added structured Smart Logs with `package:logging`, including hierarchical loggers per device/Phantom serial and configurable global logging bootstrap.
+- **feat(observability)**: added contextual telemetry (`FINE`, `INFO`, `WARNING`, `SEVERE`) for shell execution, Phantom startup, dynamic-port discovery, and TCP forwarding.
+- **feat(shell-smart-trace)**: non-zero `shell2` exit codes now emit SEVERE smart traces with command, exit code, and sanitized output.
+- **fix(phantom)**: hardened dynamic port discovery flow with logcat cleanup + polling retries/fallbacks and improved resilience for noisy multi-device environments.
+- **fix(tests)**: stabilized integration suites by isolating destructive scenarios, improving environment gating, and converting transient infra failures into contextual skips where appropriate.
+- **docs**: synchronized `adb_utils` and `phantom_agent` documentation with the dynamic-port architecture (`ServerSocket(0)` + `adb forward`) and updated operational troubleshooting guidance.
+
 ## 0.4.3
 - **feat(phantom)**: embedded Phantom APK binaries in Dart source via Base64, removing runtime dependency on local APK file paths.
 - **feat(phantom)**: refactored `PhantomClient.startAgent()` to install from embedded binaries using safe temporary files created at runtime.

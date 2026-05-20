@@ -64,19 +64,57 @@ class HtmlReporter {
         )
         ..writeln('</tr>');
 
-      if (!result.passou) {
-        final mensagemErro = result.mensagemErro ?? 'Sem mensagem de erro';
-        final stackTrace = result.stackTrace ?? 'Sem stack trace';
-        final failureContent =
-            'Mensagem:\n$mensagemErro\n\nStack Trace:\n$stackTrace';
-
+      if (!result.passou || result.evidencias.isNotEmpty) {
         buffer
           ..writeln('<tr class="failure-details-row">')
-          ..writeln('<td colspan="4">')
-          ..writeln('<div class="failure-panel">')
-          ..writeln('<h3>Evidencia de Falha</h3>')
-          ..writeln('<pre><code>${_escape(failureContent)}</code></pre>')
-          ..writeln('</div>')
+          ..writeln('<td colspan="4">');
+
+        if (!result.passou) {
+          final mensagemErro = result.mensagemErro ?? 'Sem mensagem de erro';
+          final stackTrace = result.stackTrace ?? 'Sem stack trace';
+          final failureContent =
+              'Mensagem:\n$mensagemErro\n\nStack Trace:\n$stackTrace';
+
+          buffer
+            ..writeln('<div class="failure-panel">')
+            ..writeln('<h3>Evidencia de Falha</h3>')
+            ..writeln('<pre><code>${_escape(failureContent)}</code></pre>')
+            ..writeln('</div>');
+        }
+
+        if (result.evidencias.isNotEmpty) {
+          buffer
+            ..writeln('<div class="evidence-panel">')
+            ..writeln('<h3>Evidencias</h3>');
+          for (final evidencia in result.evidencias) {
+            final uri = Uri.file(evidencia.path).toString();
+            final uriEscaped = _escape(uri);
+            final labelEscaped = _escape(evidencia.label);
+            final mediaTypeEscaped = _escape(evidencia.mediaType);
+            final pathEscaped = _escape(evidencia.path);
+
+            buffer
+              ..writeln('<div class="evidence-item">')
+              ..writeln('<p><strong>$labelEscaped</strong></p>')
+              ..writeln('<p class="evidence-meta">$mediaTypeEscaped</p>')
+              ..writeln(
+                '<p><a href="$uriEscaped" target="_blank" rel="noopener">Abrir arquivo</a></p>',
+              );
+
+            if (evidencia.mediaType.startsWith('image/')) {
+              buffer.writeln(
+                '<a href="$uriEscaped" target="_blank" rel="noopener"><img class="evidence-image" src="$uriEscaped" alt="$labelEscaped"></a>',
+              );
+            }
+
+            buffer
+              ..writeln('<p class="evidence-path">$pathEscaped</p>')
+              ..writeln('</div>');
+          }
+          buffer.writeln('</div>');
+        }
+
+        buffer
           ..writeln('</td>')
           ..writeln('</tr>');
       }
@@ -235,6 +273,44 @@ thead th {
   color: #ffd7d5;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   white-space: pre;
+}
+.evidence-panel {
+  background: #10233f;
+  border: 1px solid #2d548f;
+  border-radius: 10px;
+  margin: 8px 0 14px;
+  padding: 10px;
+}
+.evidence-panel h3 {
+  margin: 0 0 8px;
+  color: #bdd9ff;
+  font-size: 0.95rem;
+}
+.evidence-item {
+  background: #0c1b31;
+  border: 1px solid #28456f;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.evidence-item p {
+  margin: 0 0 6px;
+}
+.evidence-meta {
+  color: #9fc3f7;
+  font-size: 0.85rem;
+}
+.evidence-image {
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 6px;
+  border: 1px solid #28456f;
+}
+.evidence-path {
+  color: #9fc3f7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
 }
 ''';
   }

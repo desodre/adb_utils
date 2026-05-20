@@ -1,4 +1,4 @@
-@Tags(['integration'])
+@Tags(['integration', 'all_possible'])
 library;
 
 import 'package:adb_utils/adb_utils.dart';

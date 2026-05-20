@@ -19,7 +19,7 @@ Esta biblioteca se comunica diretamente com o servidor ADB local via TCP (`127.0
 - **Socket & Forwarding**: Criar port forwards locais/reversos e até obter conexões Socket raw nativas para serviços dentro do dispositivo Android.
 - **SYNC Nativo (Transferência de Arquivos)**: Enviar (`push`), ler (`readBytes`, `readText`) e consultar (`stat`) arquivos diretamente usando o protocolo ADB SYNC.
 - **Phantom (UiAutomator Agent)**: Orquestrar instalação/start do agente de teste instrumentado e enviar ações JSON via TCP (`dumpWindow`, `clickByText`).
-- **Phantom Video Stream (H.264)**: Consumir stream bruto de vídeo (NAL units) via `startVideoStream()` na porta `9009`.
+- **Phantom Video Stream (H.264)**: Consumir stream bruto de vídeo (NAL units) via `startVideoStream()` com portas dinâmicas descobertas em runtime.
 - **Relatório HTML de Testes**: Gerar `report.html` automaticamente após `dart test`, com evidências detalhadas de falha.
 
 ---
@@ -44,6 +44,15 @@ E instale rodando:
 
 ```sh
 dart pub get
+```
+
+---
+
+## Testes
+
+```sh
+# Executa todos os testes possíveis via tag agregadora
+dart test --tags all_possible
 ```
 
 ---
@@ -199,9 +208,14 @@ print('rotation => ${hierarchy.rotation}');
 print('clickByText => $clicked');
 ```
 
-`startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp`, instalação (`pm install -t -r`), `force-stop` do agente antigo, start do instrumented test em background (`nohup ... &`) e `adb forward tcp:<port>`.
+`startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp` (quando necessário), instalação (`pm install -t -r`), `force-stop` do agente antigo, limpeza de logcat (`logcat -c`), start da instrumentação com classe explícita (`PhantomServer#startServer`) e leitura do logcat (`logcat -v raw -d -s PhantomServer:I`) para descobrir as portas dinâmicas do device (`COMMAND_PORT_ALLOCATED` e `VIDEO_PORT_ALLOCATED`).
 
-`startVideoStream` cria automaticamente o `adb forward tcp:9009 -> tcp:9009` e retorna um `Stream<List<int>>` contínuo com o vídeo H.264 bruto (NAL units).
+Depois disso, o cliente reserva portas livres no host e aplica automaticamente:
+
+- `adb forward tcp:<host_command_port> tcp:<device_command_port>`
+- `adb forward tcp:<host_video_port> tcp:<device_video_port>`
+
+`startVideoStream()` usa o mapeamento dinâmico já resolvido por `startAgent()` e retorna um `Stream<List<int>>` contínuo com vídeo H.264 bruto (NAL units), sem hardcode de porta.
 
 ---
 

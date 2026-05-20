@@ -41,18 +41,20 @@ final target = await adb.device(transportId: 7);
 Para comunicação TCP host <-> serviço dentro do device:
 
 ```dart
-await target.forward('tcp:9008', 'tcp:9008');
-await target.forward('tcp:9009', 'tcp:9009');
+final phantom = target.phantom;
+await phantom.startAgent(); // resolve e aplica forwards dinâmicos
+print('Command port (host): ${phantom.hostCommandPort}');
+print('Video port (host): ${phantom.hostVideoPort}');
 ```
 
 Boas práticas:
 
-1. Use portas estáveis por serviço (`9008` comandos JSON, `9009` vídeo).
-2. Remova forwarding no cleanup quando fizer sentido:
+1. Prefira o fluxo automático do `PhantomClient` para resolver portas dinâmicas publicadas no logcat.
+2. Para serviços não-Phantom, remova forwarding no cleanup quando fizer sentido:
 
 ```dart
-await target.forwardRemove('tcp:9008');
-await target.forwardRemove('tcp:9009');
+await target.forwardRemove('tcp:${phantom.hostCommandPort}');
+await target.forwardRemove('tcp:${phantom.hostVideoPort}');
 ```
 
 ## Phantom Agent Configuration

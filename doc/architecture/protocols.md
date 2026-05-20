@@ -43,7 +43,7 @@ Operações principais:
 
 ## Phantom JSON Command Protocol
 
-Após `startAgent`, comandos de controlo usam JSON sobre TCP (porta default `9008`).
+Após `startAgent`, comandos de controlo usam JSON sobre TCP em porta dinâmica no host (`hostCommandPort`) mapeada por `adb forward`.
 
 ### Request payloads
 
@@ -84,10 +84,10 @@ Falha:
 
 ## Phantom Video TCP Flow (H.264)
 
-`startVideoStream()` usa TCP puro na porta `9009` e retorna stream binário:
+`startVideoStream()` usa TCP puro na porta dinâmica `hostVideoPort` e retorna stream binário:
 
 ```text
-host socket(127.0.0.1:9009) <- adb forward <- device agent encoder
+host socket(127.0.0.1:<hostVideoPort>) <- adb forward <- device socket(<deviceVideoPort>)
 ```
 
 Cada chunk contém bytes H.264 (NAL units). O consumidor deve encaminhar para decoder/player próprio.
@@ -96,4 +96,3 @@ Cada chunk contém bytes H.264 (NAL units). O consumidor deve encaminhar para de
 
 - Limites de timeout e tamanho de resposta JSON protegem contra hangs e payloads inválidos.
 - Respostas JSON vazias ou malformadas são tratadas como erro explícito.
-

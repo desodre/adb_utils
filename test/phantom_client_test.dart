@@ -1,3 +1,6 @@
+@Tags(['all_possible'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -25,6 +28,8 @@ class _FakeAdbDevice extends AdbDevice {
 
   final shellCommands = <String>[];
   final forwardCalls = <(String, String)>[];
+  final shellResponses = <String, String>{};
+  final _forwardServers = <ServerSocket>[];
   late final _FakeAdbSync fakeSync = _FakeAdbSync(this);
 
   @override
@@ -38,12 +43,32 @@ class _FakeAdbDevice extends AdbDevice {
   }) async {
     final cmd = command is List ? command.join(' ') : command as String;
     shellCommands.add(cmd);
-    return '';
+    return shellResponses[cmd] ?? '';
   }
 
   @override
   Future<void> forward(String local, String remote) async {
     forwardCalls.add((local, remote));
+    final localPort = int.tryParse(local.split(':').last);
+    if (localPort == null) {
+      return;
+    }
+
+    final server = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      localPort,
+    );
+    _forwardServers.add(server);
+    unawaited(() async {
+      try {
+        final client = await server.first.timeout(const Duration(seconds: 2));
+        await client.close();
+      } on TimeoutException {
+        // No local connect happened for this forward mapping in the test window.
+      } finally {
+        await server.close();
+      }
+    }());
   }
 }
 
@@ -77,8 +102,11 @@ _startJsonServer(String response, {bool chunked = false}) async {
   return (server: server, request: requestCompleter.future);
 }
 
-Future<ServerSocket> _startVideoServer(List<int> payload) async {
-  final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 9009);
+Future<ServerSocket> _startVideoServer(
+  List<int> payload, {
+  int port = 0,
+}) async {
+  final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
   unawaited(() async {
     final client = await server.first;
     client.add(payload);
@@ -102,12 +130,22 @@ void main() {
         () => PhantomClient(device: _FakeAdbDevice(), port: 70000),
         throwsA(isA<ArgumentError>()),
       );
+      expect(
+        () => PhantomClient(device: _FakeAdbDevice(), videoPort: 0),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => PhantomClient(device: _FakeAdbDevice(), videoPort: 70000),
+        throwsA(isA<ArgumentError>()),
+      );
     });
   });
 
   group('PhantomClient.startAgent', () {
     test('pushes APKs, installs, starts agent and forwards port', () async {
       final fakeDevice = _FakeAdbDevice();
+      fakeDevice.shellResponses['logcat -v raw -d -s PhantomServer:I'] =
+          'COMMAND_PORT_ALLOCATED: 41111\nVIDEO_PORT_ALLOCATED: 42222\n';
       final client = PhantomClient(device: fakeDevice, port: 9008);
 
       await client.startAgent();
@@ -134,33 +172,91 @@ void main() {
       expect(
         fakeDevice.shellCommands,
         equals([
+          'pm list packages | grep com.example.phantom_agent',
           'pm install -t -r /data/local/tmp/target.apk',
           'pm install -t -r /data/local/tmp/agent.apk',
           'am force-stop com.example.phantom_agent',
-          'nohup am instrument -w com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner > /dev/null 2>&1 &',
+          'logcat -c',
+          'nohup am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner > /dev/null 2>&1 &',
+          'logcat -v raw -d -s PhantomServer:I',
         ]),
       );
-      expect(fakeDevice.forwardCalls, equals([('tcp:9008', 'tcp:9008')]));
+      expect(fakeDevice.forwardCalls, hasLength(2));
+      expect(fakeDevice.forwardCalls[0].$2, equals('tcp:41111'));
+      expect(fakeDevice.forwardCalls[1].$2, equals('tcp:42222'));
+    });
+
+    test('skips APK install when agent packages are already present', () async {
+      final fakeDevice = _FakeAdbDevice();
+      fakeDevice
+              .shellResponses['pm list packages | grep com.example.phantom_agent'] =
+          'package:com.example.phantom_agent\npackage:com.example.phantom_agent.test\n';
+      fakeDevice.shellResponses['logcat -v raw -d -s PhantomServer:I'] =
+          'COMMAND_PORT_ALLOCATED: 43333\nVIDEO_PORT_ALLOCATED: 44444\n';
+      final client = PhantomClient(device: fakeDevice, port: 9008);
+
+      await client.startAgent();
+
+      expect(fakeDevice.fakeSync.pushes, isEmpty);
+      expect(
+        fakeDevice.shellCommands,
+        equals([
+          'pm list packages | grep com.example.phantom_agent',
+          'am force-stop com.example.phantom_agent',
+          'logcat -c',
+          'nohup am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner > /dev/null 2>&1 &',
+          'logcat -v raw -d -s PhantomServer:I',
+        ]),
+      );
+      expect(fakeDevice.forwardCalls, hasLength(2));
+      expect(fakeDevice.forwardCalls[0].$2, equals('tcp:43333'));
+      expect(fakeDevice.forwardCalls[1].$2, equals('tcp:44444'));
     });
   });
 
   group('PhantomClient socket communication', () {
     test(
-      'startVideoStream forwards 9009 and returns raw H.264 byte stream',
+      'startVideoStream returns raw H.264 byte stream from host video port',
       () async {
         final server = await _startVideoServer([0, 0, 0, 1, 103, 66, 0, 30]);
         final fakeDevice = _FakeAdbDevice();
-        final client = PhantomClient(device: fakeDevice);
+        final client = PhantomClient(
+          device: fakeDevice,
+          videoPort: server.port,
+        );
 
         final stream = await client.startVideoStream();
         final socket = stream as Socket;
         final bytes = await socket.expand((chunk) => chunk).toList();
 
-        expect(server.port, equals(9009));
-        expect(fakeDevice.forwardCalls, equals([('tcp:9009', 'tcp:9009')]));
+        expect(fakeDevice.forwardCalls, isEmpty);
         expect(bytes, equals([0, 0, 0, 1, 103, 66, 0, 30]));
       },
     );
+
+    test('startVideoStream supports custom local video port', () async {
+      final server = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        9015,
+      );
+      unawaited(() async {
+        final clientSocket = await server.first;
+        clientSocket.add([0, 0, 0, 1, 104, 238, 60, 128]);
+        await clientSocket.flush();
+        await clientSocket.close();
+        await server.close();
+      }());
+
+      final fakeDevice = _FakeAdbDevice();
+      final client = PhantomClient(device: fakeDevice, videoPort: 9015);
+
+      final stream = await client.startVideoStream();
+      final socket = stream as Socket;
+      final bytes = await socket.expand((chunk) => chunk).toList();
+
+      expect(fakeDevice.forwardCalls, isEmpty);
+      expect(bytes, equals([0, 0, 0, 1, 104, 238, 60, 128]));
+    });
 
     test('dumpWindow returns xml when status is success', () async {
       final serverData = await _startJsonServer(

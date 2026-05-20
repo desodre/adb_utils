@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:adb_utils/adb_utils.dart';
 import 'package:test/test.dart';
 
@@ -54,6 +57,98 @@ Future<AdbDevice> requireDevice() async {
     markTestSkipped('No device/emulator connected');
   }
   return device!;
+}
+
+/// Compatibility helper used by QA suites.
+extension AdbClientListDevicesCompat on AdbClient {
+  Future<List<DeviceInfo>> listDevices() => deviceList();
+}
+
+Future<AdbDevice> requireRealDevice() async {
+  final adb = AdbClient();
+  final devices = await adb.listDevices();
+  if (devices.isEmpty) {
+    markTestSkipped('Dispositivos não encontrados');
+    throw StateError('No devices available for real_device suite');
+  }
+
+  final online = devices.where((d) => d.state == DeviceState.device).toList();
+  if (online.isEmpty) {
+    markTestSkipped('Nenhum dispositivo online encontrado.');
+    return adb.device(serial: devices.first.serial);
+  }
+
+  for (final info in online) {
+    final device = await adb.device(serial: info.serial);
+    if (await isRealHardwareDevice(device)) {
+      return device;
+    }
+  }
+
+  markTestSkipped('Nenhum dispositivo físico encontrado (apenas emuladores).');
+  return adb.device(serial: online.first.serial);
+}
+
+Future<List<AdbDevice>> requireAtLeastDevices(int minimum) async {
+  final adb = AdbClient();
+  final devices = await adb.listDevices();
+  final online = devices.where((d) => d.state == DeviceState.device).toList();
+  if (online.length < minimum) {
+    markTestSkipped(
+      'São necessários pelo menos $minimum dispositivos online; encontrados ${online.length}.',
+    );
+  }
+
+  return Future.wait(online.map((d) => adb.device(serial: d.serial)));
+}
+
+Future<bool> isRealHardwareDevice(AdbDevice d) async {
+  final qemu = (await d.shell('getprop ro.kernel.qemu')).trim();
+  final model = (await d.shell('getprop ro.product.model')).toLowerCase();
+  final fingerprint = (await d.shell(
+    'getprop ro.build.fingerprint',
+  )).toLowerCase();
+
+  final isEmulatorLike =
+      qemu == '1' ||
+      model.contains('emulator') ||
+      model.contains('sdk') ||
+      model.contains('generic') ||
+      fingerprint.contains('generic') ||
+      d.serial.startsWith('emulator-');
+
+  return !isEmulatorLike;
+}
+
+Future<bool> isAdbCliAvailable() async {
+  try {
+    final result = await Process.run('adb', ['version']);
+    return result.exitCode == 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<void> waitForDeviceOnline({
+  required AdbClient adb,
+  required String serial,
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final devices = await adb.listDevices();
+    final found = devices.any(
+      (d) => d.serial == serial && d.state == DeviceState.device,
+    );
+    if (found) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+  }
+
+  throw TimeoutException(
+    'Device $serial did not return online within $timeout',
+  );
 }
 
 /// Matcher that checks a string is a valid PNG (starts with PNG magic bytes).

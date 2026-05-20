@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,9 +13,12 @@ const String _resultsPath = 'logs/test-report/results.jsonl';
 const String _sessionPath = 'logs/test-report/session.json';
 const String _lockPath = 'logs/test-report/report.lock';
 const String _suitesDirPath = 'logs/test-report/suites';
+const String _tempEvidenceDirName = 'adb_utils_test_evidence';
 
 String _suiteName = 'test-suite';
 bool _configured = false;
+final Object _evidenceZoneKey = Object();
+int _evidenceCounter = 0;
 
 /// Enables automatic HTML report generation for tests executed via `dart test`.
 ///
@@ -48,11 +52,14 @@ void test(
     description,
     () async {
       final stopwatch = Stopwatch()..start();
+      final evidencias = <_ReportEvidence>[];
       try {
-        final result = body();
-        if (result is Future) {
-          await result;
-        }
+        await runZoned(() async {
+          final result = body();
+          if (result is Future) {
+            await result;
+          }
+        }, zoneValues: {_evidenceZoneKey: evidencias});
 
         await _appendResult(
           _ReportRecord(
@@ -60,6 +67,7 @@ void test(
             categoria: _suiteName,
             duracaoMs: stopwatch.elapsedMilliseconds,
             passou: true,
+            evidencias: evidencias,
           ),
         );
       } catch (e, stack) {
@@ -71,6 +79,7 @@ void test(
             passou: false,
             mensagemErro: e.toString(),
             stackTrace: stack.toString(),
+            evidencias: evidencias,
           ),
         );
         rethrow;
@@ -85,6 +94,41 @@ void test(
     onPlatform: onPlatform,
     retry: retry,
   );
+}
+
+/// Saves binary evidence into a temporary file and links it to the current test.
+Future<File> addTestEvidenceBytes({
+  required String label,
+  required List<int> bytes,
+  required String extension,
+  required String mediaType,
+}) async {
+  final evidencias = Zone.current[_evidenceZoneKey];
+  if (evidencias is! List<_ReportEvidence>) {
+    throw StateError(
+      'addTestEvidenceBytes must be called inside reporting.test body.',
+    );
+  }
+
+  final safeExt = extension
+      .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+      .toLowerCase();
+  final safeLabel = _sanitizeFilePart(label);
+  final id =
+      '${DateTime.now().millisecondsSinceEpoch}_${pid}_${_evidenceCounter++}';
+  final fileName = '$id-$safeLabel${safeExt.isEmpty ? '' : '.$safeExt'}';
+
+  final tempDir = Directory(
+    '${Directory.systemTemp.path}/$_tempEvidenceDirName',
+  );
+  await tempDir.create(recursive: true);
+
+  final file = File('${tempDir.path}/$fileName');
+  await file.writeAsBytes(bytes, flush: true);
+  evidencias.add(
+    _ReportEvidence(label: label, path: file.path, mediaType: mediaType),
+  );
+  return file;
 }
 
 Future<void> _initSessionIfNeeded() async {
@@ -204,12 +248,46 @@ Future<void> _generateHtmlReport() async {
         passou: passou,
         mensagemErro: row['mensagemErro'] as String?,
         stackTrace: row['stackTrace'] as String?,
+        evidencias: _parseEvidencias(row['evidencias']),
       ),
     );
   }
 
   final reporter = HtmlReporter(outputPath: 'report.html');
   await reporter.writeReport(results);
+}
+
+List<TestEvidence> _parseEvidencias(dynamic raw) {
+  if (raw is! List) {
+    return const [];
+  }
+
+  final parsed = <TestEvidence>[];
+  for (final item in raw) {
+    if (item is! Map) {
+      continue;
+    }
+
+    final label = item['label'];
+    final path = item['path'];
+    final mediaType = item['mediaType'];
+    if (label is! String || path is! String || mediaType is! String) {
+      continue;
+    }
+
+    parsed.add(TestEvidence(label: label, path: path, mediaType: mediaType));
+  }
+  return parsed;
+}
+
+String _sanitizeFilePart(String value) {
+  final sanitized = value
+      .replaceAll(RegExp(r'\s+'), '_')
+      .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+  if (sanitized.isEmpty) {
+    return 'evidence';
+  }
+  return sanitized;
 }
 
 class _ReportRecord {
@@ -220,6 +298,7 @@ class _ReportRecord {
     required this.passou,
     this.mensagemErro,
     this.stackTrace,
+    this.evidencias = const [],
   });
 
   final String nome;
@@ -228,6 +307,7 @@ class _ReportRecord {
   final bool passou;
   final String? mensagemErro;
   final String? stackTrace;
+  final List<_ReportEvidence> evidencias;
 
   Map<String, dynamic> toJson() {
     return {
@@ -237,6 +317,23 @@ class _ReportRecord {
       'passou': passou,
       'mensagemErro': mensagemErro,
       'stackTrace': stackTrace,
+      'evidencias': evidencias.map((e) => e.toJson()).toList(),
     };
+  }
+}
+
+class _ReportEvidence {
+  const _ReportEvidence({
+    required this.label,
+    required this.path,
+    required this.mediaType,
+  });
+
+  final String label;
+  final String path;
+  final String mediaType;
+
+  Map<String, String> toJson() {
+    return {'label': label, 'path': path, 'mediaType': mediaType};
   }
 }

@@ -7,7 +7,8 @@
 /// void main() async {
 ///   final adb = AdbClient();
 ///   final d = await adb.device();
-///   print(await d.shell('getprop ro.product.model'));
+///   final model = await d.shell('getprop ro.product.model');
+///   configureAdbUtilsLogging();
 /// }
 /// ```
 library;
@@ -23,6 +24,7 @@ export 'src/models/network_type.dart';
 export 'src/models/shell_result.dart';
 export 'src/models/ui_hierarchy.dart';
 export 'src/phantom/phantom_client.dart';
+export 'src/logging/adb_logging.dart';
 export 'src/reporting/html_reporter.dart';
 export 'src/reporting/test_result.dart';
 export 'src/reporting/test_runner.dart';

@@ -40,8 +40,10 @@ Erros de protocolo e timeout são propagados com tipos explícitos (`AdbError`, 
 1. Push dos APKs para `/data/local/tmp`.
 2. Instalação via `pm install -t -r`.
 3. `force-stop` do agente.
-4. Start da instrumentação (`am instrument`) em background.
-5. Forward de porta local para porta do agente no device.
+4. Limpeza do logcat (`logcat -c`).
+5. Start da instrumentação (`am instrument`) com classe explícita (`PhantomServer#startServer`) em background.
+6. Polling de `logcat -v raw -d -s PhantomServer:I` para capturar `COMMAND_PORT_ALLOCATED` e `VIDEO_PORT_ALLOCATED`.
+7. Reserva de portas livres no host e aplicação de `adb forward` host↔device para comando e vídeo.
 
 Depois disso, comandos como `dumpWindow()` e `clickByText()` usam payload JSON via TCP.
 
@@ -49,12 +51,11 @@ Depois disso, comandos como `dumpWindow()` e `clickByText()` usam payload JSON v
 
 `PhantomClient.startVideoStream()`:
 
-1. cria `adb forward tcp:9009 -> tcp:9009`;
-2. conecta socket local em `127.0.0.1:9009`;
+1. reutiliza o mapeamento dinâmico criado em `startAgent()`;
+2. conecta socket local em `127.0.0.1:<hostVideoPort>`;
 3. retorna `Stream<List<int>>` com bytes H.264 brutos (NAL units).
 
 ## Documentation Links
 
 - Protocolo detalhado: [protocols.md](protocols.md)
 - Guias avançados: [../guides/advanced_features.md](../guides/advanced_features.md)
-

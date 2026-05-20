@@ -42,7 +42,7 @@ adb -s <serial> forward --list
 ### Fix
 
 1. Reinicie o fluxo `startAgent(...)`.
-2. Valide se `tcp:9008` está forwardado para o mesmo serial.
+2. Valide se os forwards dinâmicos (`hostCommandPort`/`hostVideoPort`) foram criados para o mesmo serial.
 3. Reinstale APKs quando houver mismatch de versões.
 
 ## 3) Video stream without data
@@ -54,13 +54,13 @@ adb -s <serial> forward --list
 ### Checks
 
 ```bash
-adb -s <serial> forward --list | grep 9009
+adb -s <serial> forward --list
 adb -s <serial> logcat -d | grep -i -E "codec|h264|media"
 ```
 
 ### Fix
 
-1. Recrie o forward `tcp:9009`.
+1. Reinicie `startAgent()` para renegociar portas dinâmicas e recriar forwards.
 2. Reinicie o agent para recuperar encoder.
 3. Verifique permissões/estado de display no device.
 
@@ -106,4 +106,3 @@ adb -s <serial> shell getprop ro.build.version.sdk
 ```bash
 adb start-server && adb devices -l && adb forward --list
 ```
-

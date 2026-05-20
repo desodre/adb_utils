@@ -2,14 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:logging/logging.dart';
+
 import '../adb_device.dart';
+import '../logging/adb_logging.dart';
 import '../models/ui_hierarchy.dart';
 import 'phantom_binaries.dart';
 
 /// Client responsible for installing and communicating with the Phantom
 /// UiAutomator agent running on an Android device.
 class PhantomClient {
-  PhantomClient({required this.device, this.port = 9008}) {
+  PhantomClient({required this.device, this.port = 9008, int? videoPort})
+    : _hostCommandPort = port,
+      _hostVideoPort = videoPort ?? (port + 1) {
     if (port < 1 || port > 65535) {
       throw ArgumentError.value(
         port,
@@ -17,58 +22,130 @@ class PhantomClient {
         'Port must be between 1 and 65535',
       );
     }
+    final resolvedVideoPort = videoPort ?? (port + 1);
+    if (resolvedVideoPort < 1 || resolvedVideoPort > 65535) {
+      throw ArgumentError.value(
+        resolvedVideoPort,
+        'videoPort',
+        'Port must be between 1 and 65535',
+      );
+    }
   }
 
   static const Duration _connectTimeout = Duration(seconds: 5);
-  static const Duration _responseTimeout = Duration(seconds: 10);
   static const int _maxResponseBytes = 1024 * 1024;
+  static const String _agentPackage = 'com.example.phantom_agent';
+  static const String _agentTestPackage = 'com.example.phantom_agent.test';
+  static const String _commandPortKey = 'commandPort';
+  static const String _videoPortKey = 'videoPort';
+  static final RegExp _commandPortRegex = RegExp(
+    r'COMMAND_PORT_ALLOCATED: (\d+)',
+  );
+  static final RegExp _videoPortRegex = RegExp(r'VIDEO_PORT_ALLOCATED: (\d+)');
 
   /// Target device used for all ADB operations.
   final AdbDevice device;
+  late final Logger _logger = Logger('PhantomClient.${device.serial}');
 
-  /// TCP port exposed by the Phantom agent.
+  /// Initial fallback command port exposed by the Phantom agent.
   final int port;
+  int _hostCommandPort;
+  int _hostVideoPort;
+  int? _deviceCommandPort;
+  int? _deviceVideoPort;
+
+  int get hostCommandPort => _hostCommandPort;
+  int get hostVideoPort => _hostVideoPort;
+  int? get deviceCommandPort => _deviceCommandPort;
+  int? get deviceVideoPort => _deviceVideoPort;
 
   /// Pushes embedded APKs, installs them, starts the instrumentation agent and
   /// configures TCP forwarding for local communication.
   Future<void> startAgent() async {
     const targetRemotePath = '/data/local/tmp/target.apk';
     const agentRemotePath = '/data/local/tmp/agent.apk';
-    final tempDir = await Directory.systemTemp.createTemp('adb_utils_phantom_');
-    final targetTempFile = File(
-      '${tempDir.path}${Platform.pathSeparator}target_temp.apk',
-    );
-    final agentTempFile = File(
-      '${tempDir.path}${Platform.pathSeparator}agent_temp.apk',
-    );
+    const packageName = _agentPackage;
+    const testRunner = 'androidx.test.runner.AndroidJUnitRunner';
+    final stopwatch = Stopwatch()..start();
+    _logger.info('Starting PhantomAgent bootstrap');
 
-    await targetTempFile.writeAsBytes(
-      base64Decode(targetApkBase64),
-      flush: true,
-    );
-    await agentTempFile.writeAsBytes(base64Decode(agentApkBase64), flush: true);
-
-    try {
-      await device.sync.push(targetTempFile.path, targetRemotePath);
-      await device.sync.push(agentTempFile.path, agentRemotePath);
-
-      await device.shell('pm install -t -r $targetRemotePath');
-      await device.shell('pm install -t -r $agentRemotePath');
-
-      await device.shell('am force-stop com.example.phantom_agent');
-      await device.shell(
-        'nohup am instrument -w '
-        'com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner '
-        '> /dev/null 2>&1 &',
+    if (await _shouldInstallPackages()) {
+      _logger.info('Phantom packages missing; pushing and installing APKs');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'adb_utils_phantom_',
+      );
+      final targetTempFile = File(
+        '${tempDir.path}${Platform.pathSeparator}target_temp.apk',
+      );
+      final agentTempFile = File(
+        '${tempDir.path}${Platform.pathSeparator}agent_temp.apk',
       );
 
-      await Future.delayed(const Duration(seconds: 2));
-      await device.forward('tcp:$port', 'tcp:$port');
-    } finally {
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
+      await targetTempFile.writeAsBytes(
+        base64Decode(targetApkBase64),
+        flush: true,
+      );
+      await agentTempFile.writeAsBytes(
+        base64Decode(agentApkBase64),
+        flush: true,
+      );
+
+      try {
+        await device.sync.push(targetTempFile.path, targetRemotePath);
+        await device.sync.push(agentTempFile.path, agentRemotePath);
+
+        await device.shell('pm install -t -r $targetRemotePath');
+        await device.shell('pm install -t -r $agentRemotePath');
+        _logger.fine('Phantom APK installation completed');
+      } finally {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
       }
+    } else {
+      _logger.fine('Phantom packages already installed; skipping APK install');
     }
+
+    await device.shell('am force-stop $_agentPackage');
+    await device.shell('logcat -c');
+    await device.shell(
+      'nohup am instrument -w -e class $packageName.PhantomServer#startServer '
+      '$packageName.test/$testRunner > /dev/null 2>&1 &',
+    );
+    _logger.fine('Instrumentation process started');
+
+    final dynamicPorts = await _waitForDynamicPorts();
+    final deviceCommandPort = dynamicPorts[_commandPortKey]!;
+    final deviceVideoPort = dynamicPorts[_videoPortKey]!;
+    _logger.shout(
+      'Dynamic ports detected: CMD=$deviceCommandPort VID=$deviceVideoPort',
+    );
+    final hostCommandPort = await _reserveHostPort();
+    final hostVideoPort = await _reserveHostPort();
+
+    await device.forward('tcp:$hostCommandPort', 'tcp:$deviceCommandPort');
+    await device.forward('tcp:$hostVideoPort', 'tcp:$deviceVideoPort');
+    _logger.info(
+      'TCP tunnels established: hostCmd=$hostCommandPort->deviceCmd=$deviceCommandPort, hostVid=$hostVideoPort->deviceVid=$deviceVideoPort',
+    );
+    _hostCommandPort = hostCommandPort;
+    _hostVideoPort = hostVideoPort;
+    _deviceCommandPort = deviceCommandPort;
+    _deviceVideoPort = deviceVideoPort;
+
+    try {
+      await _waitForAgentHealth();
+    } on TimeoutException catch (e) {
+      final logcat = await device.shell(
+        'logcat -d -s AndroidRuntime PhantomServer | tail -n 25',
+      );
+      _logger.severe('Phantom health-check failed', e);
+      throw Exception('${e.message}\n\nRecent logcat:\n$logcat');
+    }
+    stopwatch.stop();
+    _logger.info(
+      'PhantomAgent initialized successfully in ${stopwatch.elapsedMilliseconds}ms',
+    );
   }
 
   /// Starts the Phantom raw video stream over TCP.
@@ -77,8 +154,13 @@ class PhantomClient {
   /// raw H.264 data (NAL units) produced by the Android agent. Consumers are
   /// expected to parse/decode those NAL units according to their media pipeline.
   Future<Stream<List<int>>> startVideoStream() async {
-    await device.forward('tcp:9009', 'tcp:9009');
-    final socket = await Socket.connect('127.0.0.1', 9009);
+    _logger.info('Opening H.264 video stream on host port $_hostVideoPort');
+    final socket = await Socket.connect('127.0.0.1', _hostVideoPort);
+    socket.done.then(
+      (_) => _logger.fine('H.264 video stream closed'),
+      onError: (Object e, StackTrace st) =>
+          _logger.warning('H.264 video stream closed with error', e, st),
+    );
     return socket;
   }
 
@@ -89,36 +171,131 @@ class PhantomClient {
   ) async {
     Socket? socket;
     try {
+      final action = payload['action'];
       socket = await Socket.connect(
         '127.0.0.1',
-        port,
+        _hostCommandPort,
         timeout: _connectTimeout,
       );
+      _logger.fine('Sending Phantom JSON action="$action"');
       socket.writeln(jsonEncode(payload));
       await socket.flush();
 
-      final bytes = <int>[];
-      await for (final chunk in socket.timeout(_responseTimeout)) {
-        bytes.addAll(chunk);
-        if (bytes.length > _maxResponseBytes) {
+      final responseBytes = <int>[];
+      await for (final chunk in socket) {
+        responseBytes.addAll(chunk);
+        if (responseBytes.length > _maxResponseBytes) {
+          _logger.severe('Phantom response exceeded maximum payload size');
           throw Exception(
             'Phantom agent response exceeded $_maxResponseBytes bytes',
           );
         }
       }
 
-      if (bytes.isEmpty) {
+      if (responseBytes.isEmpty) {
         throw Exception('Empty response from Phantom agent');
       }
 
-      final decoded = jsonDecode(utf8.decode(bytes)) as Object?;
+      final decoded = jsonDecode(utf8.decode(responseBytes)) as Object?;
       if (decoded is! Map<String, dynamic>) {
+        _logger.severe('Phantom response parsing failed: invalid JSON shape');
         throw Exception('Invalid response format from Phantom agent');
       }
+      _logger.fine('Phantom action="$action" completed');
       return decoded;
+    } catch (e, st) {
+      _logger.severe('Phantom JSON exchange failed', e, st);
+      rethrow;
     } finally {
       socket?.destroy();
     }
+  }
+
+  Future<bool> _shouldInstallPackages() async {
+    final output = await device.shell('pm list packages | grep $_agentPackage');
+    return !(output.contains('package:$_agentPackage') &&
+        output.contains('package:$_agentTestPackage'));
+  }
+
+  Future<Map<String, int>> _waitForDynamicPorts() async {
+    const attempts = 40;
+    const interval = Duration(milliseconds: 500);
+    var lastLogcatOutput = '';
+
+    for (var i = 0; i < attempts; i++) {
+      var res = await device.shell('logcat -v raw -d -s PhantomServer:I');
+      if (res.trim().isEmpty) {
+        res = await device.shell('logcat -v raw -d -s PhantomServer');
+      }
+      if (res.trim().isEmpty) {
+        res = await device.shell('logcat -d -s PhantomServer');
+      }
+      lastLogcatOutput = res;
+
+      final commandMatch = _commandPortRegex.firstMatch(res);
+      final videoMatch = _videoPortRegex.firstMatch(res);
+      if (commandMatch != null && videoMatch != null) {
+        return {
+          _commandPortKey: int.parse(commandMatch.group(1)!),
+          _videoPortKey: int.parse(videoMatch.group(1)!),
+        };
+      }
+
+      if (i < attempts - 1) {
+        _logger.warning('Dynamic port logcat scan retry (${i + 1}/$attempts)');
+        await Future<void>.delayed(interval);
+      }
+    }
+
+    _logger.severe(
+      'Dynamic port discovery timed out after $attempts attempts. '
+      'Last logcat excerpt: ${truncateForLog(lastLogcatOutput)}',
+    );
+    throw TimeoutException(
+      'Could not read dynamic Phantom ports from logcat after $attempts '
+      'attempts. Last logcat output:\n$lastLogcatOutput',
+    );
+  }
+
+  Future<int> _reserveHostPort() async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final reservedPort = server.port;
+    await server.close();
+    return reservedPort;
+  }
+
+  Future<void> _waitForAgentHealth() async {
+    const maxAttempts = 10;
+    const backoff = Duration(milliseconds: 300);
+    Object? lastError;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final socket = await Socket.connect(
+          InternetAddress.loopbackIPv4,
+          _hostCommandPort,
+          timeout: backoff,
+        );
+        socket.destroy();
+        return;
+      } catch (e) {
+        lastError = e;
+        if (attempt < maxAttempts) {
+          _logger.warning(
+            'Phantom health-check retry ($attempt/$maxAttempts): $e',
+          );
+          await Future<void>.delayed(backoff);
+        }
+      }
+    }
+
+    _logger.severe(
+      'Phantom health-check timed out after $maxAttempts attempts: $lastError',
+    );
+    throw TimeoutException(
+      'Phantom agent did not become healthy after $maxAttempts attempts '
+      'on localhost:$_hostCommandPort. Last error: $lastError',
+    );
   }
 
   /// Requests the current UI hierarchy XML from the Phantom agent.
@@ -127,8 +304,13 @@ class PhantomClient {
   Future<String> dumpWindow() async {
     final response = await _sendJsonPayload({'action': 'dumpWindow'});
     if (response['status'] == 'success') {
-      return response['xml'] as String;
+      final xml = response['xml'] as String;
+      _logger.fine(
+        'UI dump received successfully (size: ${utf8.encode(xml).length} bytes)',
+      );
+      return xml;
     }
+    _logger.severe('dumpWindow failed: ${response['message'] ?? response}');
     throw Exception(
       'Failed to dump window: ${response['message'] ?? response}',
     );
@@ -148,7 +330,11 @@ class PhantomClient {
       'action': 'clickByText',
       'text': text,
     });
-    return response['status'] == 'success';
+    final ok = response['status'] == 'success';
+    if (!ok) {
+      _logger.warning('clickByText failed for "$text": ${response['message']}');
+    }
+    return ok;
   }
 }
 

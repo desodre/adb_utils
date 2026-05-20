@@ -31,7 +31,7 @@ class DeviceEvent {
 /// final adb = AdbClient();
 /// final devices = await adb.deviceList();
 /// final d = await adb.device();
-/// print(await d.shell('getprop ro.product.model'));
+/// final model = await d.shell('getprop ro.product.model');
 /// ```
 class AdbClient {
   AdbClient({
@@ -128,8 +128,8 @@ class AdbClient {
 
   /// Returns an [AdbDevice] for the given [serial] or [transportId].
   ///
-  /// If neither is given, expects exactly one device connected.
-  /// Throws [AdbError] if zero or multiple devices are connected.
+  /// If neither is given, returns the first online device from [deviceList].
+  /// Throws [AdbError] only when no online device is connected.
   Future<AdbDevice> device({String? serial, int? transportId}) async {
     if (serial != null) {
       return AdbDevice(serial: serial, client: this);
@@ -145,12 +145,6 @@ class AdbClient {
     final devices = await deviceList();
     final online = devices.where((d) => d.state == DeviceState.device).toList();
     if (online.isEmpty) throw AdbError('No device connected');
-    if (online.length > 1) {
-      throw AdbError(
-        'Multiple devices connected; specify serial or transportId. '
-        'Found: ${online.map((d) => d.serial).join(', ')}',
-      );
-    }
     return AdbDevice(serial: online.first.serial, client: this);
   }
 

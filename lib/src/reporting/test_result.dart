@@ -7,6 +7,7 @@ class TestResult {
     required this.passou,
     this.mensagemErro,
     this.stackTrace,
+    this.evidencias = const [],
   });
 
   final String nome;
@@ -15,4 +16,17 @@ class TestResult {
   final bool passou;
   final String? mensagemErro;
   final String? stackTrace;
+  final List<TestEvidence> evidencias;
+}
+
+class TestEvidence {
+  const TestEvidence({
+    required this.label,
+    required this.path,
+    required this.mediaType,
+  });
+
+  final String label;
+  final String path;
+  final String mediaType;
 }

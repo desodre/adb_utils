@@ -2,12 +2,15 @@ import 'dart:convert';
 import 'dart:io' show Platform, Socket, SocketException;
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
 import 'exceptions.dart';
 import 'models/network_type.dart';
 import 'models/shell_result.dart';
 import 'models/app_info.dart';
 import 'adb_sync.dart';
 import 'adb_client.dart';
+import 'logging/adb_logging.dart';
 
 /// Provides access to device properties (equivalent to Python's `d.prop`).
 class DeviceProperties {
@@ -43,6 +46,7 @@ class AdbDevice {
 
   final String serial;
   final AdbClient client;
+  late final Logger _logger = Logger('AdbDevice.$serial');
 
   late final prop = DeviceProperties(this);
   late final sync = AdbSync(this);
@@ -58,14 +62,25 @@ class AdbDevice {
     String encoding = 'utf-8',
   }) async {
     final cmd = command is List ? command.join(' ') : command as String;
+    final stopwatch = Stopwatch()..start();
+    _logger.fine('Executing shell command: $cmd');
     final t = await client.transportFor(serial);
     try {
       await t.sendCommand('shell:$cmd');
       final raw = await t.readAll();
-      return utf8.decode(raw, allowMalformed: true);
+      final output = utf8.decode(raw, allowMalformed: true);
+      _logger.fine(
+        'Shell command completed in ${stopwatch.elapsedMilliseconds}ms',
+      );
+      return output;
     } on SocketException catch (e) {
+      _logger.severe(
+        'Shell command failed with timeout in ${stopwatch.elapsedMilliseconds}ms: $cmd',
+        e,
+      );
       throw AdbTimeout('shell timed out: $e');
     } finally {
+      stopwatch.stop();
       await t.close();
     }
   }
@@ -75,12 +90,23 @@ class AdbDevice {
   /// Exit code is obtained by appending `;echo EXIT:$?` to the command.
   Future<ShellResult> shell2(Object command) async {
     final cmd = command is List ? command.join(' ') : command as String;
+    final stopwatch = Stopwatch()..start();
     final output = await shell('$cmd;echo EXIT:\$?');
     final match = RegExp(r'EXIT:(\d+)\s*$').firstMatch(output);
     final returnCode = match != null ? int.parse(match.group(1)!) : -1;
     final cleanOutput = match != null
         ? output.substring(0, match.start)
         : output;
+    if (returnCode != 0) {
+      _logger.severe(
+        'SmartTrace shell non-zero exit. command="$cmd" exitCode=$returnCode stderr="${truncateForLog(cleanOutput)}"',
+      );
+    } else {
+      _logger.fine(
+        'shell2 command succeeded in ${stopwatch.elapsedMilliseconds}ms: $cmd',
+      );
+    }
+    stopwatch.stop();
     return ShellResult(
       command: cmd,
       returnCode: returnCode,
@@ -217,10 +243,15 @@ class AdbDevice {
 
   /// Creates a port forward: `local` → `remote`.
   Future<void> forward(String local, String remote) async {
+    final stopwatch = Stopwatch()..start();
     final t = await client.openTransport();
     try {
       await t.sendCommand('host-serial:$serial:forward:$local;$remote');
+      _logger.info(
+        'TCP tunnel established in ${stopwatch.elapsedMilliseconds}ms: $local -> $remote',
+      );
     } finally {
+      stopwatch.stop();
       await t.close();
     }
   }
@@ -230,6 +261,7 @@ class AdbDevice {
     final t = await client.openTransport();
     try {
       await t.sendCommand('host-serial:$serial:killforward:$local');
+      _logger.info('TCP tunnel removed: $local');
     } finally {
       await t.close();
     }
@@ -239,6 +271,7 @@ class AdbDevice {
     final t = await client.openTransport();
     try {
       await t.sendCommand('host-serial:$serial:killforward-all');
+      _logger.info('All TCP tunnels removed for this device');
     } finally {
       await t.close();
     }

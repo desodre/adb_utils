@@ -1,6 +1,6 @@
 name: adb_utils
 description: A Dart library for interacting with ADB (Android Debug Bridge) server and devices.
-version: 0.4.3
+version: 0.4.4
 homepage: https://github.com/desodre/adb_utils
 repository: https://github.com/desodre/adb_utils
 issue_tracker: https://github.com/desodre/adb_utils/issues
@@ -15,6 +15,7 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
+  logging: ^1.3.0
   path: ^1.9.0
   xml: ">=6.0.0 < 8.0.0"
 
