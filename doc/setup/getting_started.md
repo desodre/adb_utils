@@ -21,7 +21,7 @@ Adicione no `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.4.5
+  adb_utils: ^0.4.6
 ```
 
 Depois:
@@ -74,4 +74,3 @@ Future<void> main() async {
 - Configuração avançada: [configuration.md](configuration.md)
 - Arquitetura: [../architecture/overview.md](../architecture/overview.md)
 - Exemplo completo: [../../example/README.md](../../example/README.md)
-

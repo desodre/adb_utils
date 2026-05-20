@@ -22,5 +22,4 @@ Documentação técnica modular do pacote `adb_utils`, organizada conforme as re
 
 ## Version Scope
 
-Esta documentação reflete o estado atual da release **0.4.5**.
-
+Esta documentação reflete o estado atual da release **0.4.6**.

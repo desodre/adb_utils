@@ -1,3 +1,10 @@
+## 0.4.6
+- **fix(phantom)**: replaced Logcat-based dynamic port discovery with deterministic file handshake in app-private storage (`context.filesDir/phantom_ports.json`).
+- **fix(phantom)**: Dart client now reads/cleans handshake file using `run-as com.example.phantom_agent` to avoid sandbox permission errors on `/data/local/tmp` and `/tmp`.
+- **fix(phantom)**: start instrumentation process is now launched asynchronously without shell redirection dependence, improving compatibility across real devices/emulators.
+- **test(phantom)**: updated `phantom_client_test.dart` expectations for `run-as` file polling and cleanup flow.
+- **chore(phantom)**: refreshed embedded Phantom APK artifacts and regenerated `phantom_binaries.dart`.
+
 ## 0.4.5
 - **fix(phantom)**: use filesDir handshake via run-as, previously had issues with permissions and inconsistent behavior.
 

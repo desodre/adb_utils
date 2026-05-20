@@ -42,7 +42,7 @@ Erros de protocolo e timeout são propagados com tipos explícitos (`AdbError`, 
 3. `force-stop` do agente.
 4. Limpeza do logcat (`logcat -c`).
 5. Start da instrumentação (`am instrument`) com classe explícita (`PhantomServer#startServer`) em background.
-6. Polling de `logcat -v raw -d -s PhantomServer:I` para capturar `COMMAND_PORT_ALLOCATED` e `VIDEO_PORT_ALLOCATED`.
+6. Polling do ficheiro `files/phantom_ports.json` (no `context.filesDir` da app), lido via `run-as com.example.phantom_agent cat files/phantom_ports.json`, para capturar `command_port` e `video_port`.
 7. Reserva de portas livres no host e aplicação de `adb forward` host↔device para comando e vídeo.
 
 Depois disso, comandos como `dumpWindow()` e `clickByText()` usam payload JSON via TCP.

@@ -37,7 +37,7 @@ Adicione o pacote `adb_utils` ao seu arquivo `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.4.0
+  adb_utils: ^0.4.6
 ```
 
 E instale rodando:
@@ -208,7 +208,7 @@ print('rotation => ${hierarchy.rotation}');
 print('clickByText => $clicked');
 ```
 
-`startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp` (quando necessário), instalação (`pm install -t -r`), `force-stop` do agente antigo, limpeza de logcat (`logcat -c`), start da instrumentação com classe explícita (`PhantomServer#startServer`) e leitura do logcat (`logcat -v raw -d -s PhantomServer:I`) para descobrir as portas dinâmicas do device (`COMMAND_PORT_ALLOCATED` e `VIDEO_PORT_ALLOCATED`).
+`startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp` (quando necessário), instalação (`pm install -t -r`), `force-stop` do agente antigo, start da instrumentação com classe explícita (`PhantomServer#startServer`), leitura do handshake JSON em `context.filesDir/phantom_ports.json` e descoberta das portas dinâmicas (`command_port`/`video_port`) via `run-as com.example.phantom_agent`.
 
 Depois disso, o cliente reserva portas livres no host e aplica automaticamente:
 
