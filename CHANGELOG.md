@@ -1,3 +1,6 @@
+## 0.4.5
+- **fix(phantom)**: use filesDir handshake via run-as, previously had issues with permissions and inconsistent behavior.
+
 ## 0.4.4
 - **feat(logging)**: added structured Smart Logs with `package:logging`, including hierarchical loggers per device/Phantom serial and configurable global logging bootstrap.
 - **feat(observability)**: added contextual telemetry (`FINE`, `INFO`, `WARNING`, `SEVERE`) for shell execution, Phantom startup, dynamic-port discovery, and TCP forwarding.

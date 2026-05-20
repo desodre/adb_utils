@@ -21,7 +21,7 @@ Adicione no `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.4.2
+  adb_utils: ^0.4.5
 ```
 
 Depois:
