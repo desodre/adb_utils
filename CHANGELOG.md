@@ -1,3 +1,8 @@
+## 0.4.7
+- **feat(sync)**: implemented native `LIST` protocol command in `AdbSync` to read remote directories.
+- **feat(models)**: introduced strongly-typed `AdbDirEntry` model with built-in Unix file mode decoding (`permissionsOctal`/`permissionsString`, `isDirectory`, `isFile`, `isLink`) and safe UTC timestamps.
+- **test**: added dedicated unit test suite at `test/sync_list_test.dart` to validate model parsing and mock socket server protocol exchanges (success, sentinel filtering, and FAIL/error handling).
+
 ## 0.4.6
 - **fix(phantom)**: replaced Logcat-based dynamic port discovery with deterministic file handshake in app-private storage (`context.filesDir/phantom_ports.json`).
 - **fix(phantom)**: Dart client now reads/cleans handshake file using `run-as com.example.phantom_agent` to avoid sandbox permission errors on `/data/local/tmp` and `/tmp`.
