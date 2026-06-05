@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'exceptions.dart';
 import 'adb_device.dart';
+import 'models/dir_entry.dart';
 
 const _syncData = 'DATA';
 const _syncDone = 'DONE';
@@ -267,6 +268,81 @@ class AdbSync {
       ).getUint32(0, Endian.little);
 
       return {'mode': mode, 'size': size, 'mtime': mtime};
+    } finally {
+      final quitMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode(_syncQuit))
+        ..add(_le32(0));
+      t.socket.add(quitMsg.toBytes());
+      await t.close();
+    }
+  }
+
+  /// Lists the contents of a remote directory using the bin command LIST of the SYNC protocol.
+  ///
+  /// If [includeSentinels] is false, filters out special files "." and "..".
+  /// Throws [AdbError] if operation fails.
+  Future<List<AdbDirEntry>> list(
+    String remotePath, {
+    bool includeSentinels = false,
+  }) async {
+    final t = await _device.client.transportFor(_device.serial);
+    try {
+      await t.sendCommand('sync:');
+
+      final pathBytes = utf8.encode(remotePath);
+      final reqMsg = BytesBuilder(copy: false)
+        ..add(utf8.encode('LIST'))
+        ..add(_le32(pathBytes.length))
+        ..add(pathBytes);
+      t.socket.add(reqMsg.toBytes());
+      await t.socket.flush();
+
+      final entries = <AdbDirEntry>[];
+      while (true) {
+        final id = utf8.decode(await t.readBytes(4));
+        if (id == 'DONE') {
+          await t.readBytes(16);
+          break;
+        }
+        if (id == 'FAIL') {
+          final lenBytes = await t.readBytes(4);
+          final length = ByteData.view(
+            Uint8List.fromList(lenBytes).buffer,
+          ).getUint32(0, Endian.little);
+          final msg = utf8.decode(await t.readBytes(length));
+          throw AdbError('SYNC list failed: $msg');
+        }
+        if (id != 'DENT') {
+          throw AdbError('Expected DENT or DONE, got $id');
+        }
+
+        final metaBytes = await t.readBytes(16);
+        final bd = ByteData.view(Uint8List.fromList(metaBytes).buffer);
+        final mode = bd.getUint32(0, Endian.little);
+        final size = bd.getUint32(4, Endian.little);
+        final mtimeSec = bd.getUint32(8, Endian.little);
+        final namelen = bd.getUint32(12, Endian.little);
+
+        final nameBytes = await t.readBytes(namelen);
+        final name = utf8.decode(nameBytes);
+
+        if (!includeSentinels && (name == '.' || name == '..')) {
+          continue;
+        }
+
+        entries.add(
+          AdbDirEntry(
+            name: name,
+            mode: mode,
+            size: size,
+            mtime: DateTime.fromMillisecondsSinceEpoch(
+              mtimeSec * 1000,
+              isUtc: true,
+            ),
+          ),
+        );
+      }
+      return entries;
     } finally {
       final quitMsg = BytesBuilder(copy: false)
         ..add(utf8.encode(_syncQuit))
