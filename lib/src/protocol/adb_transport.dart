@@ -22,6 +22,7 @@ class AdbTransport {
   late final StreamSubscription<List<int>> _sub;
   final _buffer = <int>[];
   bool _closed = false;
+  bool _disposed = false;
   Object? _socketError;
 
   // Completer woken up whenever new data arrives, so _readExact avoids polling.
@@ -128,7 +129,12 @@ class AdbTransport {
   Future<List<int>> readBytes(int n) => _readExact(n);
 
   Future<void> close() async {
+    if (_disposed) return;
+    _disposed = true;
+    // Closing a persistent stream (such as host:track-devices) by cancelling
+    // its subscription first can wait indefinitely for the remote server.
+    // Tear down the socket first so both pending reads and cancellation finish.
+    socket.destroy();
     await _sub.cancel();
-    await socket.close();
   }
 }

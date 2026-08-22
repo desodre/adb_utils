@@ -1,12 +1,12 @@
 # Core Concepts
 
-Referência conceitual das principais classes públicas expostas pelo pacote.
+Conceptual reference for the package's primary public classes.
 
 ## AdbClient
 
-**Responsabilidade:** conexão com o servidor ADB e operações host-scoped.
+**Responsibility:** connection to the ADB server and host-scoped operations.
 
-Principais capacidades:
+Key capabilities:
 
 - `serverVersion()`
 - `deviceList()`
@@ -24,9 +24,9 @@ final d = await adb.device(serial: devices.first.serial);
 
 ## AdbDevice
 
-**Responsabilidade:** operações por dispositivo Android.
+**Responsibility:** Android device-scoped operations.
 
-Principais capacidades:
+Key capabilities:
 
 - shell: `shell()`, `shell2()`
 - input: `click()`, `swipe()`, `sendKeys()`, `keyEvent()`
@@ -45,7 +45,7 @@ print(result.returnCode);
 
 ## AdbSync
 
-**Responsabilidade:** transferência de ficheiros via protocolo SYNC.
+**Responsibility:** file transfer through the SYNC protocol.
 
 Principais capacidades:
 
@@ -57,7 +57,7 @@ Principais capacidades:
 
 ## PhantomClient
 
-**Responsabilidade:** automação UI baseada em agent instrumentado e socket TCP.
+**Responsibility:** UI automation based on an instrumented agent and TCP socket.
 
 Principais capacidades:
 
@@ -78,9 +78,9 @@ print(ok);
 
 ## UiHierarchy / UiNode / Bounds
 
-**Responsabilidade:** modelo tipado da árvore XML de UI.
+**Responsibility:** typed UI XML tree model.
 
-Uso comum:
+Common usage:
 
 ```dart
 final hierarchy = await phantom.dumpWindowHierarchy();
@@ -90,13 +90,13 @@ print('Root nodes: ${hierarchy.nodes.length}');
 
 ## Reporting Types
 
-Para documentação e pipelines de teste:
+For reporting and test pipelines:
 
 - `TestResult`
 - `HtmlReporter`
 - `TestRunner`
 
-Fluxo típico:
+Typical flow:
 
 ```dart
 final runner = TestRunner();

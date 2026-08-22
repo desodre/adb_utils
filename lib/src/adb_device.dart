@@ -121,7 +121,7 @@ class AdbDevice {
     final t = await client.openTransport();
     try {
       await t.sendCommand('host-serial:$serial:get-state');
-      return t.readString();
+      return await t.readString();
     } finally {
       await t.close();
     }

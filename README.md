@@ -4,43 +4,43 @@
 [![Dart](https://img.shields.io/badge/Dart-%3E%3D3.11-blue)](https://dart.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Biblioteca Dart para interagir com o servidor ADB (Android Debug Bridge) e dispositivos Android via protocolo socket nativo. Inspirada na biblioteca [openatx/adbutils](https://github.com/openatx/adbutils) do Python.
+Dart library for interacting with the ADB (Android Debug Bridge) server and Android devices through the native socket protocol. Inspired by Python's [openatx/adbutils](https://github.com/openatx/adbutils).
 
-Esta biblioteca se comunica diretamente com o servidor ADB local via TCP (`127.0.0.1:5037`), eliminando a necessidade de invocar processos shell (executáveis `adb`) de forma ineficiente a todo momento.
-
----
-
-## Recursos (Features)
-
-- **Gestão de Dispositivos**: Listar, conectar, desconectar e monitorar estado de dispositivos.
-- **Execução Shell**: Executar comandos, com captura de saída e códigos de erro (`returnCode`).
-- **Instalação e Aplicativos**: Instalar/desinstalar APKs (via streaming de bytes) e obter informações avançadas de apps (`dumpsys`).
-- **Interação**: Capturar tela (screenshot) em bytes nativos, simular toques, deslizes e teclas (keyevents).
-- **Socket & Forwarding**: Criar port forwards locais/reversos e até obter conexões Socket raw nativas para serviços dentro do dispositivo Android.
-- **SYNC Nativo (Transferência de Arquivos)**: Enviar (`push`), ler (`readBytes`, `readText`) e consultar (`stat`) arquivos diretamente usando o protocolo ADB SYNC.
-- **Phantom (UiAutomator Agent)**: Orquestrar instalação/start do agente de teste instrumentado e enviar ações JSON via TCP (`dumpWindow`, `clickByText`).
-- **Phantom Video Stream (H.264)**: Consumir stream bruto de vídeo (NAL units) via `startVideoStream()` com portas dinâmicas descobertas em runtime.
-- **Relatório HTML de Testes**: Gerar `report.html` automaticamente após `dart test`, com evidências detalhadas de falha.
+This library communicates directly with the local ADB server over TCP (`127.0.0.1:5037`), avoiding repeated, inefficient invocations of the `adb` executable.
 
 ---
 
-## Primeiros Passos (Getting Started)
+## Features
 
-### Requisitos
+- **Device management**: list, connect, disconnect, and track device state.
+- **Shell execution**: run commands and capture output and exit codes (`returnCode`).
+- **Installation and apps**: install/uninstall APKs through byte streaming and retrieve advanced app information (`dumpsys`).
+- **Interaction**: capture native screenshot bytes and simulate taps, swipes, and key events.
+- **Sockets and forwarding**: create local/reverse port forwards and raw socket connections to device services.
+- **Native SYNC file transfer**: push, read, inspect, and list files through ADB SYNC.
+- **Phantom (UiAutomator agent)**: orchestrate instrumented-agent startup and send JSON actions over TCP.
+- **Phantom video stream (H.264)**: consume a raw video stream (NAL units) through dynamically discovered ports.
+- **HTML test report**: automatically generate `report.html` after `dart test`, including detailed failure evidence.
+
+---
+
+## Getting Started
+
+### Requirements
 
 - Dart SDK `^3.11.4`
-- ADB (Android Debug Bridge) instalado no sistema e o servidor em execução (`adb start-server`).
+- ADB (Android Debug Bridge) installed and its server running (`adb start-server`).
 
-### Instalação
+### Installation
 
-Adicione o pacote `adb_utils` ao seu arquivo `pubspec.yaml`:
+Add `adb_utils` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.4.6
+  adb_utils: ^0.4.7
 ```
 
-E instale rodando:
+Then install it with:
 
 ```sh
 dart pub get
@@ -48,18 +48,18 @@ dart pub get
 
 ---
 
-## Testes
+## Tests
 
 ```sh
-# Executa todos os testes possíveis via tag agregadora
+# Runs every available test through the aggregate tag
 dart test --tags all_possible
 ```
 
 ---
 
-## Uso (Usage)
+## Usage
 
-Aqui está um exemplo rápido de como se conectar ao ADB e ler o modelo de um dispositivo:
+Here is a quick example of connecting to ADB and reading a device model:
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';
@@ -67,29 +67,29 @@ import 'package:adb_utils/adb_utils.dart';
 void main() async {
   final adb = AdbClient();
 
-  // Listar todos os dispositivos conectados
+  // List all connected devices
   for (final d in await adb.deviceList()) {
     print('${d.serial} - ${d.state.name} - ${d.model ?? ''}');
   }
 
-  // Obter um dispositivo (Lança erro se houver mais de um ou nenhum)
+  // Get a device (throws when none are connected)
   final device = await adb.device();
   
-  // Ler propriedades via `getprop` com cache nativo opcional
-  print(await device.prop.model);        // ex: "Pixel 7"
+  // Read properties through `getprop`, with optional native caching
+  print(await device.prop.model);        // e.g. "Pixel 7"
   
-  // Executar um comando shell
-  print(await device.shell('uname -r')); // versão do kernel
+  // Execute a shell command
+  print(await device.shell('uname -r')); // kernel version
 }
 ```
 
 ---
 
-## API Detalhada
+## Detailed API
 
 ### `AdbClient`
 
-O `AdbClient` é a porta de entrada da biblioteca. Representa a conexão com o servidor do ADB na sua máquina.
+`AdbClient` is the library entry point. It represents the connection to the ADB server on your machine.
 
 ```dart
 final adb = AdbClient(
@@ -98,14 +98,14 @@ final adb = AdbClient(
   socketTimeout: Duration(seconds: 10),
 );
 
-// Obter dispositivo via serial ou ID de transporte
+// Get a device by serial or transport ID
 final d1 = await adb.device(serial: '8d1f93be');
 final d2 = await adb.device(transportId: 24);
 
-// Conectar via TCP (ex: adb connect)
+// Connect over TCP (equivalent to adb connect)
 await adb.connect('192.168.1.100:5555');
 
-// Monitorar eventos de conexão/desconexão em tempo real
+// Track additions, state changes, and removals in real time
 await for (final event in adb.trackDevices()) {
   print('${event.serial} conectado? ${event.present}');
 }
@@ -113,40 +113,40 @@ await for (final event in adb.trackDevices()) {
 
 ### `AdbDevice`
 
-A classe `AdbDevice` representa um Android específico.
+`AdbDevice` represents a specific Android device.
 
-**Shell & Propriedades**
+**Shell and properties**
 ```dart
 String out = await d.shell('ls -l /sdcard');
 
-// O shell2 retorna um ShellResult com o código de saída (returnCode) e sucesso.
+// shell2 returns a ShellResult with the exit code (returnCode).
 ShellResult result = await d.shell2('ls /root');
-print(result.returnCode); // 0 = sucesso, outro = erro.
+print(result.returnCode); // 0 = success; any other value = error.
 
-// Atalhos rápidos para propriedades (getprop)
-print(await d.prop.sdkVersion); // ex: "33"
+// Convenient shortcuts for properties (getprop)
+print(await d.prop.sdkVersion); // e.g. "33"
 ```
 
-**Informação de Tela e Screenshots**
+**Display information and screenshots**
 ```dart
 var (width, height) = await d.windowSize();
 bool isScreenOn = await d.isScreenOn();
 
-// Pega um print da tela diretamente em binário (sem salvar num arquivo no celular)
+// Capture the screen directly as binary data (without saving a device file)
 Uint8List png = await d.screenshot();
 ```
 
-**Toques e Teclas**
+**Taps and keys**
 ```dart
 await d.click(540, 960);
-await d.swipe(100, 500, 100, 200, 0.3); // X,Y inicio -> X,Y fim em 0.3s
-await d.sendKeys('Olá Mundo!');
+await d.swipe(100, 500, 100, 200, 0.3); // start X,Y -> end X,Y in 0.3s
+await d.sendKeys('Hello World!');
 await d.keyEvent('KEYCODE_HOME');
 ```
 
-**Gerenciamento de APK e Pacotes**
+**APK and package management**
 ```dart
-// Instala APK por streaming de Socket (não precisa dar push no arquivo)
+// Install an APK through socket streaming (no manual push required)
 await d.install(
   apkPath: 'build/app.apk',
   replace: true, 
@@ -155,34 +155,34 @@ await d.install(
 
 await d.uninstall(packageName: 'com.example.app');
 
-// Obter App ativo na tela
+// Get the app currently displayed on screen
 ForegroundAppInfo app = await d.appCurrent();
 ```
 
-### Transferência de Arquivos (`AdbSync`)
+### File Transfer (`AdbSync`)
 
-Operações via protocolo nativo de transferência ADB SYNC (`adb.sync`).
+Operations through the native ADB SYNC transfer protocol (`adb.sync`).
 
 ```dart
-// PUSH (Local -> Android)
-await d.sync.push('/caminho/local/file.txt', '/sdcard/file.txt');
-await d.sync.push(Uint8List.fromList([...]), '/sdcard/data.bin'); // direto da memoria
+// PUSH (local -> Android)
+await d.sync.push('/local/path/file.txt', '/sdcard/file.txt');
+await d.sync.push(Uint8List.fromList([...]), '/sdcard/data.bin'); // directly from memory
 
-// PULL (Android -> Local)
-await d.sync.pull('/sdcard/config.json', '/caminho/local/config.json'); // salva direto no disco (streaming)
+// PULL (Android -> local)
+await d.sync.pull('/sdcard/config.json', '/local/path/config.json'); // writes directly to disk (streaming)
 
-// READ (Android -> Memória Local)
+// READ (Android -> local memory)
 Uint8List bytes = await d.sync.readBytes('/sdcard/config.json');
 String texto    = await d.sync.readText('/sdcard/config.json');
 
-// STAT (Ler informações de tamanho e modificação)
+// STAT (read size and modification information)
 Map<String, int> info = await d.sync.stat('/sdcard/file.txt');
-// retorna algo como: {'mode': 33188, 'size': 1024, 'mtime': 16843453}
+// returns data such as: {'mode': 33188, 'size': 1024, 'mtime': 16843453}
 ```
 
 ### UiAutomator Agent (`PhantomClient`)
 
-Para automações de UI via agente instrumentado:
+For UI automation through the instrumented agent:
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';
@@ -199,8 +199,8 @@ final clicked = await phantom.clickByText('Entrar');
 final videoStream = await phantom.startVideoStream();
 
 await for (final nalChunk in videoStream) {
-  // `nalChunk` contém bytes H.264 brutos (NAL units).
-  // Encaminhe para o seu decoder/player.
+  // `nalChunk` contains raw H.264 bytes (NAL units).
+  // Send it to your decoder/player.
 }
 
 print(xml);
@@ -208,41 +208,47 @@ print('rotation => ${hierarchy.rotation}');
 print('clickByText => $clicked');
 ```
 
-`startAgent` realiza, em sequência: push dos APKs para `/data/local/tmp` (quando necessário), instalação (`pm install -t -r`), `force-stop` do agente antigo, start da instrumentação com classe explícita (`PhantomServer#startServer`), leitura do handshake JSON em `context.filesDir/phantom_ports.json` e descoberta das portas dinâmicas (`command_port`/`video_port`) via `run-as com.example.phantom_agent`.
+`startAgent` pushes APKs to `/data/local/tmp` when needed, installs them with
+`pm install -t -r`, force-stops the old agent, starts instrumentation with the
+explicit `PhantomServer#startServer` class, reads the JSON handshake at
+`context.filesDir/phantom_ports.json`, and discovers dynamic
+`command_port`/`video_port` values through `run-as com.example.phantom_agent`.
 
-Depois disso, o cliente reserva portas livres no host e aplica automaticamente:
+The client then reserves free host ports and automatically applies:
 
 - `adb forward tcp:<host_command_port> tcp:<device_command_port>`
 - `adb forward tcp:<host_video_port> tcp:<device_video_port>`
 
-`startVideoStream()` usa o mapeamento dinâmico já resolvido por `startAgent()` e retorna um `Stream<List<int>>` contínuo com vídeo H.264 bruto (NAL units), sem hardcode de porta.
+`startVideoStream()` uses the dynamic mapping resolved by `startAgent()` and
+returns a continuous `Stream<List<int>>` containing raw H.264 video (NAL
+units), without hard-coded ports.
 
 ---
 
-## Relatório HTML automático após `dart test`
+## Automatic HTML Report After `dart test`
 
-Ao executar:
+When you run:
 
 ```sh
 dart test
 ```
 
-o projeto gera automaticamente um ficheiro `report.html` na raiz com:
+the project automatically generates a `report.html` file in the root containing:
 
-- painel de resumo (Total, Passaram, Falharam, Tempo Total);
-- tabela com todos os testes executados;
-- evidências de falha destacadas com fundo vermelho escuro, bloco monoespaçado (`<pre><code>`) e scroll horizontal para leitura de mensagens longas.
+- a summary panel (total, passed, failed, total duration);
+- a table of every executed test;
+- highlighted failure evidence with a dark-red background, monospace `<pre><code>` block, and horizontal scrolling for long messages.
 
-### APIs de reporting disponíveis
+### Available reporting APIs
 
-As APIs de reporting também estão exportadas no barrel principal:
+Reporting APIs are also exported by the main barrel:
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';
 
 final result = TestResult(
-  nome: 'Conectar via Socket',
-  categoria: 'Conectividade',
+  nome: 'Connect through socket',
+  categoria: 'Connectivity',
   duracao: const Duration(milliseconds: 120),
   passou: true,
 );
@@ -251,34 +257,34 @@ final reporter = HtmlReporter(outputPath: 'report.html');
 await reporter.writeReport([result]);
 ```
 
-### Wrapper de execução sequencial (`TestRunner`)
+### Sequential execution wrapper (`TestRunner`)
 
-Para cenários customizados fora do `package:test`, use:
+For custom scenarios outside `package:test`, use:
 
 ```dart
 final runner = TestRunner();
-await runner.runTest('Nome', 'Categoria', () async {
-  // lógica assíncrona do teste
+await runner.runTest('Name', 'Category', () async {
+  // asynchronous test logic
 });
 await HtmlReporter(outputPath: 'report.html').writeReport(runner.resultados);
 ```
 
-> Nota: arquivos temporários de agregação do relatório são escritos em `logs/test-report/`.
+> Note: temporary report aggregation files are written to `logs/test-report/`.
 
 ---
 
-## Tratamento de Erros
+## Error Handling
 
-A biblioteca encapsula retornos malsucedidos em três exceções baseadas em `Exception` no arquivo `exceptions.dart`:
+The library represents unsuccessful responses with three `Exception`-based types in `exceptions.dart`:
 
-| Exceção | Descrição |
+| Exception | Description |
 | --- | --- |
-| `AdbError` | O servidor ADB retornou um status `FAIL` ou uma resposta malformada de protocolo. |
-| `AdbTimeout` | O socket atingiu o timeout limite ou uma conexão de shell perdeu acesso. |
-| `AdbInstallError` | Erro específico reportado por sessão de instalação (`install`). |
+| `AdbError` | The ADB server returned `FAIL` or a malformed protocol response. |
+| `AdbTimeout` | The socket reached its timeout or a shell connection lost access. |
+| `AdbInstallError` | An installation (`install`) session reported a specific error. |
 
 ---
 
-## Licença
+## License
 
-Este projeto é distribuído sob a licença [MIT](LICENSE).
+This project is distributed under the [MIT License](LICENSE).

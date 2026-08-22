@@ -28,7 +28,7 @@ jobs:
         run: dart format --output=none --set-exit-if-changed .
 
       - name: Unit tests
-        run: dart test test/adb_utils_test.dart
+        run: dart test --exclude-tags integration --exclude-tags device
 
       # Integration tests require an ADB server — run only when one is available.
       # To enable in CI, add a self-hosted runner with a device attached and

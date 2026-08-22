@@ -1,6 +1,6 @@
 # Advanced Features
 
-Guias práticos para fluxos avançados: streaming H.264 com Phantom e geração de relatório HTML de testes.
+Practical guides for advanced workflows: Phantom H.264 streaming and HTML test report generation.
 
 ## 1) Consuming Phantom Video Stream (H.264)
 
@@ -27,13 +27,13 @@ Future<void> main() async {
 
 ### Production recommendations
 
-1. Use buffer/queue para desacoplar leitura TCP e decode.
-2. Faça backpressure no pipeline quando o decoder estiver saturado.
-3. Aplique watchdog de inatividade para reiniciar stream quando congelar.
+1. Use a buffer or queue to decouple TCP reads from decoding.
+2. Apply backpressure when the decoder is saturated.
+3. Apply an inactivity watchdog to restart a frozen stream.
 
 ## 2) Automatic HTML Test Report
 
-O projeto fornece APIs para montar relatórios HTML com resumo e evidências de falha.
+The project provides APIs for producing HTML reports with summaries and failure evidence.
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';

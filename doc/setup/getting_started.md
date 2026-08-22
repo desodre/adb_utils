@@ -1,6 +1,7 @@
 # Getting Started
 
-Este guia cobre instalação, pré-requisitos e inicialização mínima para executar comandos ADB via `adb_utils`.
+This guide covers installation, prerequisites, and the minimum setup needed to
+run ADB commands through `adb_utils`.
 
 ## Prerequisites
 
@@ -17,14 +18,14 @@ adb devices -l
 
 ## Install Package
 
-Adicione no `pubspec.yaml`:
+Add the package to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  adb_utils: ^0.4.6
+  adb_utils: ^0.4.7
 ```
 
-Depois:
+Then run:
 
 ```bash
 dart pub get
@@ -45,7 +46,7 @@ Future<void> main() async {
 
 ## Quick Health Check
 
-Use este snippet para validar ponta a ponta (host -> ADB server -> device transport):
+Use this snippet to validate the complete path (host -> ADB server -> device transport):
 
 ```dart
 import 'package:adb_utils/adb_utils.dart';
@@ -71,6 +72,6 @@ Future<void> main() async {
 
 ## Next Steps
 
-- Configuração avançada: [configuration.md](configuration.md)
-- Arquitetura: [../architecture/overview.md](../architecture/overview.md)
-- Exemplo completo: [../../example/README.md](../../example/README.md)
+- Advanced configuration: [configuration.md](configuration.md)
+- Architecture: [../architecture/overview.md](../architecture/overview.md)
+- Complete example: [../../example/README.md](../../example/README.md)

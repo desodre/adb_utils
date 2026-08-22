@@ -1,6 +1,7 @@
 # adb_utils Documentation
 
-Documentação técnica modular do pacote `adb_utils`, organizada conforme as recomendações de layout de packages do ecossistema Dart.
+Modular technical documentation for `adb_utils`, organized according to the
+recommended package layout for the Dart ecosystem.
 
 ## Table of Contents
 
@@ -15,11 +16,11 @@ Documentação técnica modular do pacote `adb_utils`, organizada conforme as re
 
 ## Documentation Goals
 
-- Garantir onboarding rápido para novos utilizadores do pacote.
-- Explicar decisões arquiteturais para manutenção de longo prazo.
-- Documentar fluxos avançados (Phantom, streaming H.264, reporting HTML).
-- Facilitar diagnóstico operacional em ambientes reais com ADB.
+- Provide quick onboarding for new package users.
+- Explain architectural decisions for long-term maintenance.
+- Document advanced workflows (Phantom, H.264 streaming, HTML reporting).
+- Make operational diagnosis easier in real ADB environments.
 
 ## Version Scope
 
-Esta documentação reflete o estado atual da release **0.4.6**.
+This documentation reflects the current **0.4.7** release.

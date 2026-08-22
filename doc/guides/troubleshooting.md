@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Checklist para diagnosticar problemas comuns com ADB, Phantom e reporting.
+Checklist for diagnosing common ADB, Phantom, and reporting issues.
 
 ## 1) `No device connected` / `Multiple devices connected`
 
@@ -18,7 +18,7 @@ adb devices -l
 
 ### Fix
 
-Selecione serial explicitamente:
+Select a serial explicitly:
 
 ```dart
 final device = await AdbClient().device(serial: 'emulator-5554');
@@ -28,8 +28,8 @@ final device = await AdbClient().device(serial: 'emulator-5554');
 
 ### Symptoms
 
-- exceção em `dumpWindow()` / `clickByText()`
-- timeout na socket do Phantom
+- exception in `dumpWindow()` / `clickByText()`
+- timeout on the Phantom socket
 
 ### Checks
 
@@ -41,15 +41,15 @@ adb -s <serial> forward --list
 
 ### Fix
 
-1. Reinicie o fluxo `startAgent(...)`.
-2. Valide se os forwards dinâmicos (`hostCommandPort`/`hostVideoPort`) foram criados para o mesmo serial.
-3. Reinstale APKs quando houver mismatch de versões.
+1. Restart the `startAgent(...)` flow.
+2. Check that dynamic forwards (`hostCommandPort`/`hostVideoPort`) were created for the same serial.
+3. Reinstall the APKs when versions do not match.
 
 ## 3) Video stream without data
 
 ### Symptoms
 
-- `startVideoStream()` conecta, mas não chegam chunks.
+- `startVideoStream()` connects, but no chunks arrive.
 
 ### Checks
 
@@ -60,16 +60,16 @@ adb -s <serial> logcat -d | grep -i -E "codec|h264|media"
 
 ### Fix
 
-1. Reinicie `startAgent()` para renegociar portas dinâmicas e recriar forwards.
-2. Reinicie o agent para recuperar encoder.
-3. Verifique permissões/estado de display no device.
+1. Restart `startAgent()` to renegotiate dynamic ports and recreate forwards.
+2. Restart the agent to recover the encoder.
+3. Check display permissions and state on the device.
 
-## 4) `dart test` sem relatório final
+## 4) `dart test` without a final report
 
 ### Symptoms
 
-- execução de testes falha no `tearDownAll`;
-- `FormatException` ao ler `results.jsonl`.
+- test execution fails in `tearDownAll`;
+- `FormatException` while reading `results.jsonl`.
 
 ### Checks
 
@@ -79,9 +79,9 @@ ls -la logs/test-report
 
 ### Fix
 
-- mantenha helper de reporting fora de nome `*_test.dart`;
-- garanta append concorrente sob lock;
-- ignore linhas residuais inválidas no parse.
+- keep the reporting helper outside a `*_test.dart` filename;
+- ensure concurrent append operations are locked;
+- ignore invalid residual lines during parsing.
 
 ## 5) Install failures (`AdbInstallError`)
 
@@ -98,8 +98,8 @@ adb -s <serial> shell getprop ro.build.version.sdk
 
 ### Fix
 
-- use flags adequadas (`replace`, `allowTest`, `allowDowngrade`, `grantAllPermissions`);
-- remova versão anterior conflituosa quando necessário.
+- use the appropriate flags (`replace`, `allowTest`, `allowDowngrade`, `grantAllPermissions`);
+- remove a conflicting previous version when necessary.
 
 ## Health-Check Script (Quick)
 

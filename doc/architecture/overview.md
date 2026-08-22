@@ -1,49 +1,52 @@
 # Architecture Overview
 
-`adb_utils` implementa comunicação direta com o servidor ADB via socket TCP (`127.0.0.1:5037`) e abstrações de alto nível para operações de dispositivo, transferência de ficheiros e automação UI.
+`adb_utils` communicates directly with the ADB server through a TCP socket
+(`127.0.0.1:5037`) and provides high-level abstractions for device operations,
+file transfer, and UI automation.
 
 ## High-Level Components
 
 1. **AdbTransport**  
-   Camada de baixo nível do protocolo ADB (wire format `XXXX<payload>`).
+Low-level ADB protocol layer (wire format `XXXX<payload>`).
 2. **AdbClient**  
-   Ponto de entrada para operações host-scoped: listagem de devices, connect/disconnect, tracking.
+Entry point for host-scoped operations: device listing, connect/disconnect, and tracking.
 3. **AdbDevice**  
-   Operações device-scoped: shell, input, screenshots, app management, forwarding.
+Device-scoped operations: shell, input, screenshots, app management, and forwarding.
 4. **AdbSync**  
-   Transferência de ficheiros pelo protocolo SYNC (push/pull/read/stat).
+File transfer through the SYNC protocol (push/pull/read/stat).
 5. **PhantomClient**  
-   Orquestra instalação/start do agent UIAutomator e executa comandos JSON via TCP.
+Orchestrates installation/startup of the UIAutomator agent and executes JSON commands through TCP.
 6. **Reporting**  
-   Geração de relatórios HTML para execuções de testes.
+Generates HTML reports for test executions.
 
 ## Design Principles
 
 ### 1) One transport per command
 
-Cada operação abre um novo `AdbTransport`, executa o comando e fecha o socket no `finally`.  
-Isto reduz efeitos colaterais entre comandos e melhora isolamento de erro.
+Each operation opens a new `AdbTransport`, executes the command, and closes the
+socket in `finally`. This reduces side effects between commands and improves
+error isolation.
 
 ### 2) Explicit host vs device context
 
-- Host-scoped: usa `AdbClient.openTransport()`.
-- Device-scoped: usa `AdbClient.transportFor(serial)`.
+- Host-scoped: uses `AdbClient.openTransport()`.
+- Device-scoped: uses `AdbClient.transportFor(serial)`.
 
 ### 3) Fail-fast with typed exceptions
 
-Erros de protocolo e timeout são propagados com tipos explícitos (`AdbError`, `AdbTimeout`, `AdbInstallError`), evitando fallback silencioso.
+Protocol and timeout errors are propagated through explicit types (`AdbError`,
+`AdbTimeout`, `AdbInstallError`), avoiding silent fallbacks.
 
 ## Phantom Flow (UI Automation)
 
 `PhantomClient.startAgent()` executa:
 
-1. Push dos APKs para `/data/local/tmp`.
-2. Instalação via `pm install -t -r`.
-3. `force-stop` do agente.
-4. Limpeza do logcat (`logcat -c`).
-5. Start da instrumentação (`am instrument`) com classe explícita (`PhantomServer#startServer`) em background.
-6. Polling do ficheiro `files/phantom_ports.json` (no `context.filesDir` da app), lido via `run-as com.example.phantom_agent cat files/phantom_ports.json`, para capturar `command_port` e `video_port`.
-7. Reserva de portas livres no host e aplicação de `adb forward` host↔device para comando e vídeo.
+1. Push APKs to `/data/local/tmp`.
+2. Install with `pm install -t -r`.
+3. Force-stop the agent.
+4. Start instrumentation (`am instrument`) with the explicit `PhantomServer#startServer` class in the background.
+5. Poll `files/phantom_ports.json` (in the app's `context.filesDir`) through `run-as com.example.phantom_agent cat files/phantom_ports.json`, to obtain `command_port` and `video_port`.
+6. Reserve free host ports and apply host↔device `adb forward` rules for commands and video.
 
 Depois disso, comandos como `dumpWindow()` e `clickByText()` usam payload JSON via TCP.
 
@@ -51,11 +54,11 @@ Depois disso, comandos como `dumpWindow()` e `clickByText()` usam payload JSON v
 
 `PhantomClient.startVideoStream()`:
 
-1. reutiliza o mapeamento dinâmico criado em `startAgent()`;
-2. conecta socket local em `127.0.0.1:<hostVideoPort>`;
-3. retorna `Stream<List<int>>` com bytes H.264 brutos (NAL units).
+1. reuses the dynamic mapping created by `startAgent()`;
+2. connects a local socket at `127.0.0.1:<hostVideoPort>`;
+3. returns a `Stream<List<int>>` containing raw H.264 bytes (NAL units).
 
 ## Documentation Links
 
-- Protocolo detalhado: [protocols.md](protocols.md)
-- Guias avançados: [../guides/advanced_features.md](../guides/advanced_features.md)
+- Detailed protocol: [protocols.md](protocols.md)
+- Advanced guides: [../guides/advanced_features.md](../guides/advanced_features.md)

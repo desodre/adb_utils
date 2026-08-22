@@ -1,44 +1,44 @@
 ## 0.4.7
-- **feat(sync)**: implemented native `LIST` protocol command in `AdbSync` to read remote directories.
-- **feat(models)**: introduced strongly-typed `AdbDirEntry` model with built-in Unix file mode decoding (`permissionsOctal`/`permissionsString`, `isDirectory`, `isFile`, `isLink`) and safe UTC timestamps.
-- **test**: added dedicated unit test suite at `test/sync_list_test.dart` to validate model parsing and mock socket server protocol exchanges (success, sentinel filtering, and FAIL/error handling).
+- **feat(sync)**: implemented the native `LIST` protocol command in `AdbSync` to read remote directories.
+- **feat(models)**: introduced the strongly typed `AdbDirEntry` model with built-in Unix file-mode decoding (`permissionsOctal`/`permissionsString`, `isDirectory`, `isFile`, `isLink`) and safe UTC timestamps.
+- **test**: added a dedicated unit-test suite at `test/sync_list_test.dart` to validate model parsing and mock socket-server protocol exchanges (success, sentinel filtering, and FAIL/error handling).
 
 ## 0.4.6
-- **fix(phantom)**: replaced Logcat-based dynamic port discovery with deterministic file handshake in app-private storage (`context.filesDir/phantom_ports.json`).
-- **fix(phantom)**: Dart client now reads/cleans handshake file using `run-as com.example.phantom_agent` to avoid sandbox permission errors on `/data/local/tmp` and `/tmp`.
-- **fix(phantom)**: start instrumentation process is now launched asynchronously without shell redirection dependence, improving compatibility across real devices/emulators.
-- **test(phantom)**: updated `phantom_client_test.dart` expectations for `run-as` file polling and cleanup flow.
+- **fix(phantom)**: replaced Logcat-based dynamic port discovery with a deterministic file handshake in app-private storage (`context.filesDir/phantom_ports.json`).
+- **fix(phantom)**: the Dart client now reads and cleans the handshake file using `run-as com.example.phantom_agent` to avoid sandbox permission errors on `/data/local/tmp` and `/tmp`.
+- **fix(phantom)**: instrumentation now starts asynchronously without relying on shell redirection, improving compatibility across real devices and emulators.
+- **test(phantom)**: updated `phantom_client_test.dart` expectations for `run-as` file polling and cleanup.
 - **chore(phantom)**: refreshed embedded Phantom APK artifacts and regenerated `phantom_binaries.dart`.
 
 ## 0.4.5
-- **fix(phantom)**: use filesDir handshake via run-as, previously had issues with permissions and inconsistent behavior.
+- **fix(phantom)**: use a filesDir handshake through `run-as`, resolving previous permission and consistency issues.
 
 ## 0.4.4
 - **feat(logging)**: added structured Smart Logs with `package:logging`, including hierarchical loggers per device/Phantom serial and configurable global logging bootstrap.
 - **feat(observability)**: added contextual telemetry (`FINE`, `INFO`, `WARNING`, `SEVERE`) for shell execution, Phantom startup, dynamic-port discovery, and TCP forwarding.
 - **feat(shell-smart-trace)**: non-zero `shell2` exit codes now emit SEVERE smart traces with command, exit code, and sanitized output.
-- **fix(phantom)**: hardened dynamic port discovery flow with logcat cleanup + polling retries/fallbacks and improved resilience for noisy multi-device environments.
-- **fix(tests)**: stabilized integration suites by isolating destructive scenarios, improving environment gating, and converting transient infra failures into contextual skips where appropriate.
-- **docs**: synchronized `adb_utils` and `phantom_agent` documentation with the dynamic-port architecture (`ServerSocket(0)` + `adb forward`) and updated operational troubleshooting guidance.
+- **fix(phantom)**: hardened dynamic port discovery with Logcat cleanup, polling retries/fallbacks, and improved resilience in noisy multi-device environments.
+- **fix(tests)**: stabilized integration suites by isolating destructive scenarios, improving environment gating, and converting transient infrastructure failures into contextual skips where appropriate.
+- **docs**: synchronized `adb_utils` and `phantom_agent` documentation with the dynamic-port architecture (`ServerSocket(0)` + `adb forward`) and updated troubleshooting guidance.
 
 ## 0.4.3
-- **feat(phantom)**: embedded Phantom APK binaries in Dart source via Base64, removing runtime dependency on local APK file paths.
-- **feat(phantom)**: refactored `PhantomClient.startAgent()` to install from embedded binaries using safe temporary files created at runtime.
-- **feat(phantom)**: added `AdbDevice.phantom` extension for ergonomic usage (`await device.phantom.startAgent();`).
+- **feat(phantom)**: embedded Phantom APK binaries in Dart source through Base64, removing the runtime dependency on local APK paths.
+- **feat(phantom)**: refactored `PhantomClient.startAgent()` to install embedded binaries through safe temporary files created at runtime.
+- **feat(phantom)**: added the `AdbDevice.phantom` extension for ergonomic usage (`await device.phantom.startAgent();`).
 - **build(tooling)**: added `tool/generate_base64_apks.dart` to regenerate `lib/src/phantom/phantom_binaries.dart`.
-- **docs**: updated README/docs/examples to the new no-path Phantom startup flow.
+- **docs**: updated the README, docs, and examples for the new no-path Phantom startup flow.
 
 ## 0.4.2
 - **docs**: updated documentation to reflect the latest changes in release 0.4.2.
-- **ex**: also add examples.
+- **example**: added examples.
 
 
 
 ## 0.4.1
 
 - **hotfix(reporting)**: fixed automatic HTML report generation in `dart test`.
-  - Renamed test helper from `test/helpers/reporting_test.dart` to `test/helpers/reporting.dart` so it is no longer discovered as a standalone test file.
-  - Fixed concurrent JSONL append writes by forcing file-end position before writing under lock.
+  - Renamed the test helper from `test/helpers/reporting_test.dart` to `test/helpers/reporting.dart` so it is no longer discovered as a standalone test file.
+  - Fixed concurrent JSONL append writes by forcing the file-end position before writing under lock.
   - Hardened report/session JSON parsing to ignore malformed residual lines instead of failing in `tearDownAll`.
 
 ## 0.4.0

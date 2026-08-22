@@ -6,7 +6,12 @@ import 'models/forward_item.dart';
 import 'protocol/adb_transport.dart';
 import 'adb_device.dart';
 
-/// Event emitted by [AdbClient.trackDevices].
+/// A change detected by [AdbClient.trackDevices].
+///
+/// [present] is `true` when a device appears in a tracking snapshot or its
+/// ADB [state] changes. It is `false` when a device that was present in the
+/// previous snapshot is absent from the current one. An `offline` device is
+/// still present; its state merely indicates that it is unavailable.
 class DeviceEvent {
   const DeviceEvent({
     required this.serial,
@@ -231,31 +236,72 @@ class AdbClient {
 
   // ── Track devices ─────────────────────────────────────────────────────────
 
-  /// Streams device connect/disconnect events.
+  /// Streams device additions, state changes, and removals.
+  ///
+  /// ADB's `host:track-devices` service sends complete snapshots, rather than
+  /// individual events. The first snapshot emits one event per device. Each
+  /// later snapshot is compared with the prior one: new devices and state
+  /// changes emit events with `present` set to `true`, and missing devices
+  /// emit events with `present` set to `false`.
   ///
   /// Throws [AdbError] if the ADB server is killed while tracking.
-  Stream<DeviceEvent> trackDevices() async* {
-    final t = await openTransport();
-    await t.sendCommand('host:track-devices');
-    try {
-      while (true) {
-        final body = await t.readString();
-        for (final line in body.trim().split('\n')) {
-          if (line.trim().isEmpty) continue;
-          final parts = line.trim().split(RegExp(r'\s+'));
-          if (parts.length < 2) continue;
-          final serial = parts[0];
-          final state = DeviceState.parse(parts[1]);
-          yield DeviceEvent(
-            serial: serial,
-            state: state,
-            present: state != DeviceState.offline,
-          );
+  Stream<DeviceEvent> trackDevices() {
+    late final StreamController<DeviceEvent> controller;
+    AdbTransport? transport;
+    var cancelled = false;
+
+    Future<void> run() async {
+      var previous = <String, DeviceState>{};
+      try {
+        transport = await openTransport();
+        if (cancelled) return;
+        await transport!.sendCommand('host:track-devices');
+        while (!cancelled) {
+          final body = await transport!.readString();
+          if (cancelled) break;
+          final current = <String, DeviceState>{};
+          for (final line in body.trim().split('\n')) {
+            if (line.trim().isEmpty) continue;
+            final parts = line.trim().split(RegExp(r'\s+'));
+            if (parts.length < 2) continue;
+            final serial = parts[0];
+            final state = DeviceState.parse(parts[1]);
+            current[serial] = state;
+            if (previous[serial] != state) {
+              controller.add(
+                DeviceEvent(serial: serial, state: state, present: true),
+              );
+            }
+          }
+          for (final entry in previous.entries) {
+            if (!current.containsKey(entry.key)) {
+              controller.add(
+                DeviceEvent(
+                  serial: entry.key,
+                  state: entry.value,
+                  present: false,
+                ),
+              );
+            }
+          }
+          previous = current;
         }
+      } catch (error, stackTrace) {
+        if (!cancelled) controller.addError(error, stackTrace);
+      } finally {
+        await transport?.close();
+        if (!cancelled) await controller.close();
       }
-    } finally {
-      await t.close();
     }
+
+    controller = StreamController<DeviceEvent>(
+      onListen: () => unawaited(run()),
+      onCancel: () async {
+        cancelled = true;
+        await transport?.close();
+      },
+    );
+    return controller.stream;
   }
 
   /// Opens a transport connection already switched to [serial].

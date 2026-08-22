@@ -1,12 +1,12 @@
 # adb_utils Example
 
-Este exemplo demonstra o **happy path** completo:
+This example demonstrates the complete **happy path**:
 
-1. Conectar ao servidor ADB.
-2. Selecionar um device.
-3. Inicializar o Phantom agent.
-4. Extrair a hierarquia de UI.
-5. Executar um clique por texto.
+1. Connect to the ADB server.
+2. Select a device.
+3. Start the Phantom agent.
+4. Extract the UI hierarchy.
+5. Click an element by text.
 
 ## Run
 
@@ -16,9 +16,9 @@ dart run example/example.dart
 
 ## Requirements
 
-- ADB instalado e ativo (`adb start-server`)
-- Pelo menos um dispositivo conectado (`adb devices -l`)
-- Os APKs do Phantom já estão embutidos em Base64 pela própria biblioteca.
+- ADB installed and running (`adb start-server`)
+- At least one connected device (`adb devices -l`)
+- Phantom APKs already embedded as Base64 by the library itself.
 
 ## Related Docs
 
