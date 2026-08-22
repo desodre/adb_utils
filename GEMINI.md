@@ -45,4 +45,5 @@ Dart library for interacting with the Android Debug Bridge (ADB) server and devi
 - `lib/src/protocol/`: Low-level protocol implementation.
 - `lib/src/models/`: Strongly typed data structures (`AppInfo`, `ShellResult`, etc.).
 - `test/helpers/`: Contains `requireAdbServer()`, `requireDevice()`, and custom matchers.
-- `mock/apks/`: Contains test artifacts like `CtsVerifier.apk`.
+- `mock/apks/`: Contains the lightweight `UiTestSupport.apk` fixture used by
+  installation, permission, app-info, and Phantom UI integration tests.

@@ -8,6 +8,20 @@ import '../helpers/reporting.dart';
 
 import '../helpers/adb_test_helpers.dart';
 
+const _supportApkPath = 'mock/apks/UiTestSupport.apk';
+const _supportPackageName = 'com.desodre.uitestsupport';
+const _supportActivity = '$_supportPackageName/.MainActivity';
+
+Iterable<UiNode> _flattenNodes(Iterable<UiNode> nodes) sync* {
+  for (final node in nodes) {
+    yield node;
+    yield* _flattenNodes(node.children);
+  }
+}
+
+bool _isPermissionGranted(String dumpsys, String permission) =>
+    RegExp('${RegExp.escape(permission)}: granted=true').hasMatch(dumpsys);
+
 /// Integration tests that require a physical device or emulator connected.
 ///
 /// Run with:
@@ -361,60 +375,86 @@ void main() {
   // install / uninstall / isAppInstalled tests are in app_test.dart
 
   group('AdbDevice.install and uninstall tests', () {
-    const apkPath = 'mock/apks/CtsVerifier.apk';
-    const packageName = 'com.android.cts.verifier';
+    tearDown(() async {
+      await d.uninstall(packageName: _supportPackageName);
+    });
 
-    test('install CTS Verifier app', () async {
-      String output = await d.install(apkPath: apkPath);
+    test('installs the lightweight support app', () async {
+      final output = await d.install(apkPath: _supportApkPath);
+      expect(output, contains('Success'));
+      expect(await d.listPackages(), contains(_supportPackageName));
+    });
+
+    test('installs the support app with replace flag', () async {
+      await d.install(apkPath: _supportApkPath);
+      final output = await d.install(apkPath: _supportApkPath, replace: true);
       expect(output, contains('Success'));
     });
 
-    test('install CTS Verifier app with replace flag', () async {
-      String output = await d.install(apkPath: apkPath, replace: true);
+    test('installs the support app with allowTest flag', () async {
+      final output = await d.install(apkPath: _supportApkPath, allowTest: true);
       expect(output, contains('Success'));
     });
 
-    test('install CTS Verifier app with allowTest flag', () async {
-      String output = await d.install(apkPath: apkPath, allowTest: true);
-      expect(output, contains('Success'));
-    });
-
-    test('install CTS Verifier app with allowDowngrade flag', () async {
-      String output = await d.install(apkPath: apkPath, allowDowngrade: true);
-      expect(output, contains('Success'));
-    });
-
-    test('install CTS Verifier app with grantAllPermissions flag', () async {
-      String output = await d.install(
-        apkPath: apkPath,
-        grantAllPermissions: true,
+    test('installs the support app with allowDowngrade flag', () async {
+      final output = await d.install(
+        apkPath: _supportApkPath,
+        allowDowngrade: true,
       );
       expect(output, contains('Success'));
     });
 
-    test('uninstall CTS Verifier app', () async {
-      String output = await d.uninstall(packageName: packageName);
+    test('grantAllPermissions grants declared runtime permissions', () async {
+      final output = await d.install(
+        apkPath: _supportApkPath,
+        grantAllPermissions: true,
+      );
       expect(output, contains('Success'));
+
+      final packageDump = await d.shell('dumpsys package $_supportPackageName');
+      expect(
+        _isPermissionGranted(packageDump, 'android.permission.CAMERA'),
+        isTrue,
+      );
+      expect(
+        _isPermissionGranted(packageDump, 'android.permission.RECORD_AUDIO'),
+        isTrue,
+      );
+    });
+
+    test('uninstalls the support app', () async {
+      await d.install(apkPath: _supportApkPath);
+      final output = await d.uninstall(packageName: _supportPackageName);
+      expect(output, contains('Success'));
+      expect(await d.listPackages(), isNot(contains(_supportPackageName)));
     });
   });
 
   group('AdbDevice.appInfo', () {
+    setUpAll(() async {
+      await d.install(apkPath: _supportApkPath, replace: true);
+    });
+
+    tearDownAll(() async {
+      await d.uninstall(packageName: _supportPackageName);
+    });
+
     test('returns AppInfo for installed package', () async {
-      final info = await d.appInfo('com.android.settings');
-      expect(info.packageName, equals('com.android.settings'));
+      final info = await d.appInfo(_supportPackageName);
+      expect(info.packageName, equals(_supportPackageName));
       expect(info.versionCode, isNotNull);
-      expect(info.versionName, isNotNull);
-      expect(info.versionName, isNotEmpty);
+      expect(info.versionCode, equals(1));
+      expect(info.versionName, equals('1.0'));
     });
 
     test('firstInstallTime and lastUpdateTime are non-null', () async {
-      final info = await d.appInfo('com.android.settings');
+      final info = await d.appInfo(_supportPackageName);
       expect(info.firstInstallTime, isNotNull);
       expect(info.lastUpdateTime, isNotNull);
     });
 
     test('firstInstallTime is not an epoch sentinel (year >= 2000)', () async {
-      final info = await d.appInfo('com.android.settings');
+      final info = await d.appInfo(_supportPackageName);
       expect(info.firstInstallTime!.year, greaterThanOrEqualTo(2000));
     });
 
@@ -423,6 +463,56 @@ void main() {
         () => d.appInfo('com.nonexistent.package.xyz'),
         throwsA(isA<AdbError>()),
       );
+    });
+  });
+
+  group('Phantom UI automation with support app', () {
+    late PhantomClient phantom;
+
+    setUpAll(() async {
+      await d.install(
+        apkPath: _supportApkPath,
+        replace: true,
+        grantAllPermissions: true,
+      );
+      await d.shell('am start -W -n $_supportActivity');
+      phantom = d.phantom;
+      await phantom.startAgent();
+    });
+
+    tearDownAll(() async {
+      await d.forwardRemove('tcp:${phantom.hostCommandPort}');
+      await d.forwardRemove('tcp:${phantom.hostVideoPort}');
+      await d.shell('am force-stop com.example.phantom_agent');
+      await d.uninstall(packageName: _supportPackageName);
+    });
+
+    test('dumpWindow returns the deterministic support screen', () async {
+      final xml = await phantom.dumpWindow();
+      expect(xml, contains('ADB Utils UI Test Support'));
+      expect(xml, contains('Count: 0'));
+      expect(xml, contains('Increment'));
+    });
+
+    test('dumpWindowHierarchy exposes stable resource IDs', () async {
+      final hierarchy = await phantom.dumpWindowHierarchy();
+      final nodes = _flattenNodes(hierarchy.nodes).toList();
+
+      expect(
+        nodes.map((node) => node.resourceId),
+        contains('$_supportPackageName:id/increment_button'),
+      );
+      expect(
+        nodes.where((node) => node.text == 'Increment').single.clickable,
+        isTrue,
+      );
+    });
+
+    test('clickByText changes the visible counter', () async {
+      expect(await phantom.clickByText('Increment'), isTrue);
+
+      final xml = await phantom.dumpWindow();
+      expect(xml, contains('Count: 1'));
     });
   });
 }
