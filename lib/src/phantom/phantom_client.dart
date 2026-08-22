@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 
 import '../adb_device.dart';
+import '../exceptions.dart';
 import '../logging/adb_logging.dart';
 import '../models/ui_hierarchy.dart';
 import 'phantom_binaries.dart';
@@ -93,8 +94,8 @@ class PhantomClient {
         await device.sync.push(targetTempFile.path, targetRemotePath);
         await device.sync.push(agentTempFile.path, agentRemotePath);
 
-        await device.shell('pm install -t -r $targetRemotePath');
-        await device.shell('pm install -t -r $agentRemotePath');
+        await _installPackage(targetRemotePath, _agentPackage);
+        await _installPackage(agentRemotePath, _agentTestPackage);
         _logger.fine('Phantom APK installation completed');
       } finally {
         if (await tempDir.exists()) {
@@ -219,9 +220,24 @@ class PhantomClient {
   }
 
   Future<bool> _shouldInstallPackages() async {
-    final output = await device.shell('pm list packages | grep $_agentPackage');
-    return !(output.contains('package:$_agentPackage') &&
-        output.contains('package:$_agentTestPackage'));
+    final output = await device.shell('pm list packages');
+    final installedPackages = output
+        .split('\n')
+        .where((line) => line.startsWith('package:'))
+        .map((line) => line.substring('package:'.length).trim())
+        .toSet();
+    return !(installedPackages.contains(_agentPackage) &&
+        installedPackages.contains(_agentTestPackage));
+  }
+
+  Future<void> _installPackage(String remotePath, String packageName) async {
+    final output = await device.shell('pm install -t -r $remotePath');
+    if (!output.trim().startsWith('Success')) {
+      throw AdbInstallError(
+        'Could not install Phantom package $packageName from $remotePath: '
+        '${output.trim()}',
+      );
+    }
   }
 
   Future<Map<String, int>> _readPortsFromFile() async {

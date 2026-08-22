@@ -20,6 +20,8 @@ Future<void> main(List<String> args) async {
   final generatedContent =
       '/// GENERATED FILE - DO NOT EDIT BY HAND.\n'
       '/// Run: dart run tool/generate_base64_apks.dart\n'
+      '/// Matches https://github.com/desodre/phantom_agent.\n'
+      '/// Regenerate this file whenever the agent APKs change.\n'
       'library;\n\n'
       "const String targetApkBase64 = r'''$targetBase64''';\n"
       "const String agentApkBase64 = r'''$agentBase64''';\n";

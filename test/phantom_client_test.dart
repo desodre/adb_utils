@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:adb_utils/src/adb_client.dart';
 import 'package:adb_utils/src/adb_device.dart';
+import 'package:adb_utils/src/exceptions.dart';
 import 'package:adb_utils/src/models/ui_hierarchy.dart';
 import 'package:adb_utils/src/adb_sync.dart';
 import 'package:adb_utils/src/phantom/phantom_client.dart';
@@ -152,6 +153,10 @@ void main() {
       fakeDevice
               .shellResponses['run-as com.example.phantom_agent cat files/phantom_ports.json'] =
           '{"command_port":41111,"video_port":42222}';
+      fakeDevice.shellResponses['pm install -t -r /data/local/tmp/target.apk'] =
+          'Success\n';
+      fakeDevice.shellResponses['pm install -t -r /data/local/tmp/agent.apk'] =
+          'Success\n';
       final client = PhantomClient(device: fakeDevice, port: 9008);
 
       await client.startAgent();
@@ -178,7 +183,7 @@ void main() {
       expect(
         fakeDevice.shellCommands,
         equals([
-          'pm list packages | grep com.example.phantom_agent',
+          'pm list packages',
           'pm install -t -r /data/local/tmp/target.apk',
           'pm install -t -r /data/local/tmp/agent.apk',
           'am force-stop com.example.phantom_agent',
@@ -195,8 +200,7 @@ void main() {
 
     test('skips APK install when agent packages are already present', () async {
       final fakeDevice = _FakeAdbDevice();
-      fakeDevice
-              .shellResponses['pm list packages | grep com.example.phantom_agent'] =
+      fakeDevice.shellResponses['pm list packages'] =
           'package:com.example.phantom_agent\npackage:com.example.phantom_agent.test\n';
       fakeDevice
               .shellResponses['run-as com.example.phantom_agent cat files/phantom_ports.json'] =
@@ -209,7 +213,7 @@ void main() {
       expect(
         fakeDevice.shellCommands,
         equals([
-          'pm list packages | grep com.example.phantom_agent',
+          'pm list packages',
           'am force-stop com.example.phantom_agent',
           'run-as com.example.phantom_agent rm -f files/phantom_ports.json',
           'am instrument -w -e class com.example.phantom_agent.PhantomServer#startServer com.example.phantom_agent.test/androidx.test.runner.AndroidJUnitRunner',
@@ -222,8 +226,58 @@ void main() {
       expect(fakeDevice.forwardCalls[1].$2, equals('tcp:44444'));
     });
 
+    test('installs when only the test package is present', () async {
+      final fakeDevice = _FakeAdbDevice();
+      fakeDevice.shellResponses['pm list packages'] =
+          'package:com.example.phantom_agent.test\n';
+      fakeDevice.shellResponses['pm install -t -r /data/local/tmp/target.apk'] =
+          'Success\n';
+      fakeDevice.shellResponses['pm install -t -r /data/local/tmp/agent.apk'] =
+          'Success\n';
+      fakeDevice
+              .shellResponses['run-as com.example.phantom_agent cat files/phantom_ports.json'] =
+          '{"command_port":47777,"video_port":48888}';
+
+      await PhantomClient(device: fakeDevice).startAgent();
+
+      expect(fakeDevice.fakeSync.pushes, hasLength(2));
+    });
+
+    test(
+      'reports package manager failures without polling the handshake',
+      () async {
+        final fakeDevice = _FakeAdbDevice();
+        fakeDevice
+                .shellResponses['pm install -t -r /data/local/tmp/target.apk'] =
+            'Failure [INSTALL_FAILED_OLDER_SDK]';
+
+        await expectLater(
+          PhantomClient(device: fakeDevice).startAgent(),
+          throwsA(
+            isA<AdbInstallError>().having(
+              (error) => error.message,
+              'message',
+              contains('INSTALL_FAILED_OLDER_SDK'),
+            ),
+          ),
+        );
+        expect(
+          fakeDevice.shellCommands,
+          isNot(
+            contains(
+              'run-as com.example.phantom_agent cat files/phantom_ports.json',
+            ),
+          ),
+        );
+      },
+    );
+
     test('retries ports file parsing when JSON is partially written', () async {
       final fakeDevice = _FakeAdbDevice();
+      fakeDevice.shellResponses['pm install -t -r /data/local/tmp/target.apk'] =
+          'Success\n';
+      fakeDevice.shellResponses['pm install -t -r /data/local/tmp/agent.apk'] =
+          'Success\n';
       fakeDevice
           .shellResponseQueue['run-as com.example.phantom_agent cat files/phantom_ports.json'] = [
         '{"command_port":45555',
