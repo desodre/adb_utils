@@ -8,6 +8,8 @@ Dart library for interacting with the ADB (Android Debug Bridge) server and Andr
 
 This library communicates directly with the local ADB server over TCP (`127.0.0.1:5037`), avoiding repeated, inefficient invocations of the `adb` executable.
 
+This is the Dart implementation in the adb-utils family. The independently versioned Kotlin/JVM implementation is available in [desodre/adb-utils-gradle-package](https://github.com/desodre/adb-utils-gradle-package). The implementations share protocol goals, but not source code or release numbers.
+
 ---
 
 ## Features
